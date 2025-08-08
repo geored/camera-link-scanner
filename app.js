@@ -12,11 +12,17 @@ class CameraLinkScanner {
         this.facingMode = 'environment'; // Start with back camera
         this.isScanning = false;
         this.worker = null;
-        this.detectedLinks = [];
+        this.detectedLinks = []; // Current scan links
+        this.linkHistory = []; // Persistent link memory
+        this.maxHistorySize = 50; // Keep up to 50 links in memory
+        this.displayLimit = 5; // Show only 5 most recent
         this.lastScanTime = 0;
         this.scanCooldown = 2000; // 2 seconds between scans
         
+        this.loadLinkHistory();
+        
         this.init();
+        this.updateLinksDisplay();
     }
     
     async init() {
@@ -74,6 +80,14 @@ class CameraLinkScanner {
         this.scanBtn.addEventListener('click', () => this.scanForLinks());
         this.toggleCameraBtn.addEventListener('click', () => this.toggleCamera());
         
+        // Add clear history button listener
+        const clearHistoryBtn = document.getElementById('clearHistory');
+        clearHistoryBtn.addEventListener('click', () => {
+            if (confirm('Clear all link history?')) {
+                this.clearHistory();
+            }
+        });
+        
         // Auto-scan with throttling
         setInterval(() => {
             const now = Date.now();
@@ -127,9 +141,8 @@ class CameraLinkScanner {
     }
     
     detectAndDisplayLinks(text, words, canvasScale = 1) {
-        // Clear previous markers and list
+        // Clear previous markers
         this.overlay.innerHTML = '';
-        this.linksList.innerHTML = '';
         this.detectedLinks = [];
         
         // Enhanced URL regex patterns
@@ -165,6 +178,9 @@ class CameraLinkScanner {
         foundUrls.forEach((url, index) => {
             this.detectedLinks.push(url);
             
+            // Add to persistent history (avoid duplicates)
+            this.addToHistory(url);
+            
             // Find words that are part of this URL
             const urlWords = this.findUrlWords(url, words);
             
@@ -180,13 +196,13 @@ class CameraLinkScanner {
                     this.overlay.appendChild(marker);
                 });
             }
-            
-            // Add to links list
-            this.addToLinksList(url, index);
         });
         
-        if (this.detectedLinks.length > 0) {
-            this.updateStatus(`Found ${this.detectedLinks.length} link(s) - Select from list`, 'ready');
+        // Update the links display
+        this.updateLinksDisplay();
+        
+        if (this.linkHistory.length > 0) {
+            this.updateStatus(`${this.detectedLinks.length} new, ${this.linkHistory.length} total links`, 'ready');
             this.linksPanel.classList.add('show');
         } else {
             this.linksPanel.classList.remove('show');
@@ -224,16 +240,78 @@ class CameraLinkScanner {
         return hasValidTLD && hasValidFormat && notTooShort && notCommonWords;
     }
     
-    addToLinksList(url, index) {
-        const listItem = document.createElement('div');
-        listItem.className = 'link-item';
-        listItem.innerHTML = `
-            <span class="link-number">${index + 1}</span>
-            <span class="link-url">${this.truncateUrl(url)}</span>
-        `;
+    addToHistory(url) {
+        const formattedUrl = this.formatUrl(url);
         
-        listItem.addEventListener('click', () => this.openLink(url));
-        this.linksList.appendChild(listItem);
+        // Remove if already exists (move to top)
+        this.linkHistory = this.linkHistory.filter(item => item.url !== formattedUrl);
+        
+        // Add to beginning with timestamp
+        this.linkHistory.unshift({
+            url: formattedUrl,
+            timestamp: Date.now(),
+            isNew: true
+        });
+        
+        // Limit history size
+        if (this.linkHistory.length > this.maxHistorySize) {
+            this.linkHistory = this.linkHistory.slice(0, this.maxHistorySize);
+        }
+        
+        // Save to localStorage
+        this.saveLinkHistory();
+    }
+    
+    updateLinksDisplay() {
+        this.linksList.innerHTML = '';
+        
+        if (this.linkHistory.length === 0) {
+            this.linksPanel.classList.remove('show');
+            return;
+        }
+        
+        // Show only the most recent links up to display limit
+        const recentLinks = this.linkHistory.slice(0, this.displayLimit);
+        
+        recentLinks.forEach((linkItem, index) => {
+            const listElement = document.createElement('div');
+            listElement.className = `link-item ${linkItem.isNew ? 'new-link' : ''}`;
+            
+            const timeAgo = this.getTimeAgo(linkItem.timestamp);
+            
+            listElement.innerHTML = `
+                <span class="link-number">${index + 1}</span>
+                <div class="link-content">
+                    <span class="link-url">${this.truncateUrl(linkItem.url)}</span>
+                    <span class="link-time">${timeAgo}</span>
+                </div>
+                <button class="remove-link" data-url="${linkItem.url}">×</button>
+            `;
+            
+            // Add click handler for link
+            listElement.querySelector('.link-content').addEventListener('click', () => {
+                this.openLink(linkItem.url);
+                this.markAsUsed(linkItem.url);
+            });
+            
+            // Add remove handler
+            listElement.querySelector('.remove-link').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.removeFromHistory(linkItem.url);
+            });
+            
+            this.linksList.appendChild(listElement);
+            
+            // Clear new flag after a moment
+            if (linkItem.isNew) {
+                setTimeout(() => {
+                    linkItem.isNew = false;
+                    listElement.classList.remove('new-link');
+                }, 2000);
+            }
+        });
+        
+        this.linksPanel.classList.add('show');
     }
     
     truncateUrl(url) {
@@ -252,16 +330,76 @@ class CameraLinkScanner {
     openLink(url) {
         const formattedUrl = this.formatUrl(url);
         
-        // Confirm before opening
-        if (confirm(`Open link?\n${formattedUrl}`)) {
-            try {
-                window.open(formattedUrl, '_blank', 'noopener,noreferrer');
-                this.updateStatus(`Opened: ${formattedUrl}`, 'ready');
-            } catch (error) {
-                console.error('Error opening link:', error);
-                this.updateStatus('Failed to open link', 'error');
+        try {
+            window.open(formattedUrl, '_blank', 'noopener,noreferrer');
+            this.updateStatus(`Opened: ${this.truncateUrl(formattedUrl)}`, 'ready');
+            
+            // Add haptic feedback if available
+            if (navigator.vibrate) {
+                navigator.vibrate(50);
             }
+        } catch (error) {
+            console.error('Error opening link:', error);
+            this.updateStatus('Failed to open link', 'error');
         }
+    }
+    
+    markAsUsed(url) {
+        const linkItem = this.linkHistory.find(item => item.url === url);
+        if (linkItem) {
+            linkItem.lastUsed = Date.now();
+            this.saveLinkHistory();
+        }
+    }
+    
+    removeFromHistory(url) {
+        this.linkHistory = this.linkHistory.filter(item => item.url !== url);
+        this.saveLinkHistory();
+        this.updateLinksDisplay();
+        
+        // Add haptic feedback
+        if (navigator.vibrate) {
+            navigator.vibrate(30);
+        }
+    }
+    
+    clearHistory() {
+        this.linkHistory = [];
+        this.saveLinkHistory();
+        this.updateLinksDisplay();
+    }
+    
+    loadLinkHistory() {
+        try {
+            const saved = localStorage.getItem('linkHistory');
+            if (saved) {
+                this.linkHistory = JSON.parse(saved);
+                // Clean old links (older than 7 days)
+                const weekAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+                this.linkHistory = this.linkHistory.filter(item => item.timestamp > weekAgo);
+            }
+        } catch (error) {
+            console.error('Failed to load link history:', error);
+            this.linkHistory = [];
+        }
+    }
+    
+    saveLinkHistory() {
+        try {
+            localStorage.setItem('linkHistory', JSON.stringify(this.linkHistory));
+        } catch (error) {
+            console.error('Failed to save link history:', error);
+        }
+    }
+    
+    getTimeAgo(timestamp) {
+        const now = Date.now();
+        const diff = now - timestamp;
+        
+        if (diff < 60000) return 'now';
+        if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
+        if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
+        return `${Math.floor(diff / 86400000)}d`;
     }
     
     updateStatus(message, type = '') {

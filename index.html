@@ -108,67 +108,196 @@
             position: absolute;
             bottom: 80px;
             left: 20px;
-            max-width: 300px;
-            max-height: 200px;
-            background: rgba(0, 0, 0, 0.9);
-            border-radius: 8px;
-            padding: 10px;
-            overflow-y: auto;
-            backdrop-filter: blur(10px);
+            width: 320px;
+            max-height: 280px;
+            background: rgba(0, 0, 0, 0.95);
+            border-radius: 12px;
+            padding: 12px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
             z-index: 90;
             display: none;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            transform: translateY(10px);
+            opacity: 0;
         }
 
         .links-panel.show {
             display: block;
+            opacity: 1;
+            transform: translateY(0);
         }
 
         .links-header {
             color: #00ff00;
             font-size: 14px;
             font-weight: bold;
-            margin-bottom: 8px;
+            margin-bottom: 12px;
             text-align: center;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .clear-history {
+            background: none;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: rgba(255, 255, 255, 0.7);
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .clear-history:hover {
+            background: rgba(255, 0, 0, 0.2);
+            border-color: #ff0000;
+            color: #ff0000;
+        }
+
+        #linksList {
+            max-height: 200px;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: rgba(0, 255, 0, 0.5) transparent;
+        }
+
+        #linksList::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        #linksList::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        #linksList::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 0, 0.5);
+            border-radius: 2px;
         }
 
         .link-item {
             display: flex;
             align-items: center;
-            padding: 8px;
-            margin: 4px 0;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 6px;
+            padding: 10px;
+            margin: 6px 0;
+            background: rgba(255, 255, 255, 0.08);
+            border-radius: 8px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
             border: 1px solid transparent;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .link-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: linear-gradient(45deg, transparent, rgba(0, 255, 0, 0.1), transparent);
+            transform: translateX(-100%);
+            transition: transform 0.6s ease;
+        }
+
+        .link-item.new-link {
+            animation: slideInLeft 0.5s ease, glow 2s ease;
+            border-color: rgba(0, 255, 0, 0.5);
+        }
+
+        .link-item.new-link::before {
+            transform: translateX(100%);
+        }
+
+        @keyframes slideInLeft {
+            from {
+                transform: translateX(-100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes glow {
+            0%, 100% { box-shadow: 0 0 5px rgba(0, 255, 0, 0.3); }
+            50% { box-shadow: 0 0 20px rgba(0, 255, 0, 0.6); }
         }
 
         .link-item:hover {
-            background: rgba(0, 255, 0, 0.2);
+            background: rgba(0, 255, 0, 0.15);
             border-color: #00ff00;
-            transform: translateX(5px);
+            transform: translateX(8px) scale(1.02);
+            box-shadow: 0 4px 20px rgba(0, 255, 0, 0.3);
         }
 
         .link-number {
-            background: #00ff00;
+            background: linear-gradient(135deg, #00ff00, #00cc00);
             color: #000;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            margin-right: 12px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 8px rgba(0, 255, 0, 0.4);
+            transition: all 0.3s ease;
+        }
+
+        .link-item:hover .link-number {
+            transform: scale(1.1);
+            box-shadow: 0 4px 16px rgba(0, 255, 0, 0.6);
+        }
+
+        .link-content {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        .link-url {
+            font-size: 13px;
+            color: white;
+            word-break: break-all;
+            line-height: 1.3;
+            display: block;
+            margin-bottom: 2px;
+        }
+
+        .link-time {
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.6);
+            font-style: italic;
+        }
+
+        .remove-link {
+            background: none;
+            border: none;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px;
             border-radius: 50%;
             width: 24px;
             height: 24px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            margin-right: 10px;
-            flex-shrink: 0;
+            transition: all 0.2s ease;
+            margin-left: 8px;
         }
 
-        .link-url {
-            font-size: 12px;
-            color: white;
-            word-break: break-all;
-            line-height: 1.2;
+        .remove-link:hover {
+            background: rgba(255, 0, 0, 0.2);
+            color: #ff0000;
+            transform: scale(1.2);
         }
 
         .status {
@@ -203,7 +332,10 @@
         <div id="status" class="status">Initializing camera...</div>
         
         <div id="linksPanel" class="links-panel">
-            <div class="links-header">📱 Detected Links</div>
+            <div class="links-header">
+                <span>📱 Link History</span>
+                <button id="clearHistory" class="clear-history">Clear</button>
+            </div>
             <div id="linksList"></div>
         </div>
         
