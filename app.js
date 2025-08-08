@@ -7,6 +7,7 @@ class CameraLinkScanner {
         this.toggleCameraBtn = document.getElementById('toggleCamera');
         this.linksList = document.getElementById('linksList');
         this.linksPanel = document.getElementById('linksPanel');
+        this.performanceInfo = document.getElementById('performanceInfo');
         
         this.currentStream = null;
         this.facingMode = 'environment'; // Start with back camera
@@ -17,7 +18,12 @@ class CameraLinkScanner {
         this.maxHistorySize = 50; // Keep up to 50 links in memory
         this.displayLimit = 5; // Show only 5 most recent
         this.lastScanTime = 0;
-        this.scanCooldown = 2000; // 2 seconds between scans
+        this.scanCooldown = 1500; // 1.5 seconds between scans
+        this.processingCanvas = null;
+        this.processingCtx = null;
+        this.isProcessing = false;
+        this.scanRegions = [];
+        this.lastImageData = null;
         
         this.loadLinkHistory();
         
@@ -38,12 +44,29 @@ class CameraLinkScanner {
     
     async initTesseract() {
         this.updateStatus('Loading OCR engine...', 'loading');
+        // Use optimized worker setup
         this.worker = await Tesseract.createWorker('eng');
+        
+        // Preload additional optimizations
+        await this.worker.loadLanguage('eng');
+        await this.worker.initialize('eng');
         await this.worker.setParameters({
             tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.:/?#[]@!$&\'()*+,;=%-_~',
             tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
-            preserve_interword_spaces: '1'
+            preserve_interword_spaces: '1',
+            tessedit_ocr_engine_mode: Tesseract.OEM.LSTM_ONLY,
+            tessedit_char_blacklist: '|\\`^{}"<>[]',
+            load_system_dawg: '0',
+            load_freq_dawg: '0',
+            tessedit_enable_doc_dict: '0',
+            classify_enable_learning: '0',
+            textord_really_old_xheight: '1',
+            textord_min_linesize: '2.5'
         });
+        
+        // Initialize processing canvas
+        this.processingCanvas = document.createElement('canvas');
+        this.processingCtx = this.processingCanvas.getContext('2d');
     }
     
     async startCamera() {
@@ -88,13 +111,16 @@ class CameraLinkScanner {
             }
         });
         
-        // Auto-scan with throttling
+        // Smart auto-scan with region detection
         setInterval(() => {
             const now = Date.now();
             if (!this.isScanning && (now - this.lastScanTime) > this.scanCooldown) {
-                this.scanForLinks();
+                this.smartScan();
             }
-        }, 1000);
+        }, 800); // More frequent checks
+        
+        // Add motion detection for faster scanning
+        this.setupMotionDetection();
     }
     
     async toggleCamera() {
@@ -103,36 +129,29 @@ class CameraLinkScanner {
     }
     
     async scanForLinks() {
-        if (this.isScanning || !this.worker) return;
+        if (this.isScanning || !this.worker || this.isProcessing) return;
         
         this.isScanning = true;
+        this.isProcessing = true;
         this.lastScanTime = Date.now();
         this.scanBtn.disabled = true;
         this.updateStatus('Scanning for links...', 'loading');
         
         try {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+            // Use progressive scanning strategy
+            const processedImage = this.preprocessImage();
+            const scanResult = await this.performOCR(processedImage);
             
-            // Reduce canvas size for faster processing
-            const scale = 0.5;
-            canvas.width = this.video.videoWidth * scale;
-            canvas.height = this.video.videoHeight * scale;
-            
-            // Enhance image for better OCR
-            ctx.filter = 'contrast(1.2) brightness(1.1)';
-            ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
-            
-            const { data } = await this.worker.recognize(canvas);
-            const text = data.text;
-            
-            this.detectAndDisplayLinks(text, data.words, scale);
+            if (scanResult) {
+                this.detectAndDisplayLinks(scanResult.text, scanResult.words, processedImage.scale);
+            }
             
         } catch (error) {
             console.error('OCR error:', error);
             this.updateStatus('Scan failed: ' + error.message, 'error');
         } finally {
             this.isScanning = false;
+            this.isProcessing = false;
             this.scanBtn.disabled = false;
             if (this.detectedLinks.length === 0) {
                 this.updateStatus('No links detected - Point camera at text with URLs', 'ready');
@@ -140,16 +159,186 @@ class CameraLinkScanner {
         }
     }
     
+    preprocessImage() {
+        const scale = 0.6; // Better balance between speed and accuracy
+        const width = this.video.videoWidth * scale;
+        const height = this.video.videoHeight * scale;
+        
+        this.processingCanvas.width = width;
+        this.processingCanvas.height = height;
+        
+        const ctx = this.processingCtx;
+        
+        // Draw original image
+        ctx.drawImage(this.video, 0, 0, width, height);
+        
+        // Get image data for processing
+        const imageData = ctx.getImageData(0, 0, width, height);
+        const data = imageData.data;
+        
+        // Apply image enhancement for better OCR
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Convert to grayscale with better contrast
+            const gray = Math.floor(0.299 * r + 0.587 * g + 0.114 * b);
+            
+            // Enhance contrast and brightness
+            let enhanced = gray;
+            enhanced = Math.min(255, Math.max(0, (enhanced - 128) * 1.3 + 128)); // Contrast
+            enhanced = Math.min(255, enhanced + 20); // Brightness
+            
+            // Apply threshold for better text recognition
+            enhanced = enhanced > 120 ? 255 : enhanced < 80 ? 0 : enhanced;
+            
+            data[i] = enhanced;
+            data[i + 1] = enhanced;
+            data[i + 2] = enhanced;
+        }
+        
+        // Put enhanced image back
+        ctx.putImageData(imageData, 0, 0);
+        
+        return {
+            canvas: this.processingCanvas,
+            scale: scale,
+            width: width,
+            height: height
+        };
+    }
+    
+    async performOCR(processedImage) {
+        try {
+            // Use optimized recognition with region-based processing
+            const startTime = performance.now();
+            
+            const { data } = await this.worker.recognize(processedImage.canvas, {
+                rectangle: { top: 0, left: 0, width: processedImage.width, height: processedImage.height }
+            });
+            
+            const processingTime = performance.now() - startTime;
+            console.log(`OCR processed in ${processingTime.toFixed(0)}ms`);
+            
+            // Update performance info
+            this.updatePerformanceInfo(processingTime, data.confidence);
+            
+            // Filter and sort words by confidence
+            const filteredWords = data.words
+                .filter(word => word.confidence > 65)
+                .sort((a, b) => b.confidence - a.confidence);
+            
+            return {
+                text: data.text,
+                words: filteredWords,
+                confidence: data.confidence,
+                processingTime: processingTime
+            };
+        } catch (error) {
+            console.error('OCR processing error:', error);
+            return null;
+        }
+    }
+    
+    setupMotionDetection() {
+        let lastFrameData = null;
+        let motionDetected = false;
+        
+        setInterval(() => {
+            if (this.isScanning || !this.video.videoWidth) return;
+            
+            // Create small canvas for motion detection
+            const motionCanvas = document.createElement('canvas');
+            const motionCtx = motionCanvas.getContext('2d');
+            motionCanvas.width = 160;
+            motionCanvas.height = 120;
+            
+            motionCtx.drawImage(this.video, 0, 0, 160, 120);
+            const currentFrameData = motionCtx.getImageData(0, 0, 160, 120).data;
+            
+            if (lastFrameData) {
+                let diffSum = 0;
+                for (let i = 0; i < currentFrameData.length; i += 4) {
+                    const diff = Math.abs(currentFrameData[i] - lastFrameData[i]);
+                    diffSum += diff;
+                }
+                
+                const avgDiff = diffSum / (currentFrameData.length / 4);
+                motionDetected = avgDiff > 10; // Motion threshold
+                
+                // If motion detected and camera is stable, scan faster
+                if (motionDetected && this.scanCooldown > 1000) {
+                    this.scanCooldown = 1000;
+                } else if (!motionDetected) {
+                    this.scanCooldown = 2000;
+                }
+            }
+            
+            lastFrameData = currentFrameData;
+        }, 200);
+    }
+    
+    async smartScan() {
+        // Use region-based scanning for better performance
+        if (this.detectTextRegions()) {
+            await this.scanForLinks();
+        }
+    }
+    
+    detectTextRegions() {
+        try {
+            // Quick edge detection to find text-like regions
+            const detectionCanvas = document.createElement('canvas');
+            const detectionCtx = detectionCanvas.getContext('2d');
+            detectionCanvas.width = 200;
+            detectionCanvas.height = 150;
+            
+            detectionCtx.drawImage(this.video, 0, 0, 200, 150);
+            const imageData = detectionCtx.getImageData(0, 0, 200, 150);
+            const data = imageData.data;
+            
+            let edgeCount = 0;
+            for (let i = 0; i < data.length - 4; i += 4) {
+                const curr = (data[i] + data[i + 1] + data[i + 2]) / 3;
+                const next = (data[i + 4] + data[i + 5] + data[i + 6]) / 3;
+                if (Math.abs(curr - next) > 30) edgeCount++;
+            }
+            
+            // If we detect enough edges (likely text), proceed with scan
+            return edgeCount > 50;
+        } catch (error) {
+            return true; // Fallback to always scan if detection fails
+        }
+    }
+    
+    updatePerformanceInfo(processingTime, confidence) {
+        const avgConfidence = confidence ? confidence.toFixed(0) : 'N/A';
+        const timeColor = processingTime < 1000 ? '#00ff00' : processingTime < 2000 ? '#ffaa00' : '#ff0000';
+        
+        this.performanceInfo.innerHTML = `
+            <div>OCR: <span style="color: ${timeColor}">${processingTime.toFixed(0)}ms</span></div>
+            <div>Conf: <span style="color: #00ff00">${avgConfidence}%</span></div>
+        `;
+    }
+    
     detectAndDisplayLinks(text, words, canvasScale = 1) {
         // Clear previous markers
         this.overlay.innerHTML = '';
         this.detectedLinks = [];
         
-        // Enhanced URL regex patterns
+        // Ultra-precise URL regex patterns
         const urlPatterns = [
-            /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-            /www\.[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            /[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
+            // Full HTTP/HTTPS URLs
+            /https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)?/gi,
+            // www domains
+            /www\.(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)++[a-zA-Z]{2,6}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // Domain.com patterns
+            /(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)++(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?\b/gi,
+            // Social media and common patterns
+            /(?:youtube\.com|youtu\.be|twitter\.com|facebook\.com|instagram\.com|linkedin\.com|github\.com|reddit\.com)\/[^\s<>"{}|\\^`\[\]]*/gi,
+            // IP addresses with ports
+            /(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)(?::[0-9]+)?(?:\/[^\s]*)?/gi
         ];
         
         const foundUrls = new Set();
@@ -221,23 +410,69 @@ class CameraLinkScanner {
     }
     
     findUrlWords(url, words) {
-        const urlParts = url.toLowerCase().split(/[\/.:]/);
+        const urlLower = url.toLowerCase();
+        const urlParts = urlLower.split(/[\/.:#?&=]/).filter(part => part.length > 2);
+        
         return words.filter(word => {
-            const wordText = word.text.toLowerCase();
-            return urlParts.some(part => 
-                part.length > 2 && (wordText.includes(part) || part.includes(wordText))
-            ) && word.confidence > 60;
+            const wordText = word.text.toLowerCase().replace(/[^a-z0-9]/g, '');
+            
+            // Skip if confidence is too low
+            if (word.confidence < 75) return false;
+            
+            // Direct match
+            if (urlLower.includes(wordText) || wordText.length > 3 && urlLower.includes(wordText)) {
+                return true;
+            }
+            
+            // Partial match with URL parts
+            return urlParts.some(part => {
+                if (part.length < 3) return false;
+                
+                // Exact match
+                if (part === wordText) return true;
+                
+                // Substring match (both directions)
+                if (part.length > 4 && wordText.length > 4) {
+                    return part.includes(wordText) || wordText.includes(part);
+                }
+                
+                return false;
+            });
         });
     }
     
     isValidUrl(url) {
-        // Check if it looks like a valid URL
-        const hasValidTLD = /\.[a-zA-Z]{2,}/.test(url);
-        const hasValidFormat = /^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,}/.test(url.replace(/^https?:\/\//, '').replace(/^www\./, ''));
-        const notTooShort = url.length >= 4;
-        const notCommonWords = !['com.', 'org.', 'net.', 'edu.'].some(word => url.toLowerCase() === word);
+        // Enhanced URL validation
+        const cleanUrl = url.toLowerCase().trim();
         
-        return hasValidTLD && hasValidFormat && notTooShort && notCommonWords;
+        // Check minimum length
+        if (cleanUrl.length < 4) return false;
+        
+        // Remove protocol for validation
+        const withoutProtocol = cleanUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+        
+        // Must have valid TLD
+        const validTLDs = /\.(com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/|$)/;
+        if (!validTLDs.test(withoutProtocol)) return false;
+        
+        // Must have valid domain structure
+        const domainParts = withoutProtocol.split('/')[0].split('.');
+        if (domainParts.length < 2) return false;
+        
+        // Each domain part should be valid
+        for (const part of domainParts) {
+            if (part.length === 0 || part.startsWith('-') || part.endsWith('-')) return false;
+            if (!/^[a-zA-Z0-9-]+$/.test(part)) return false;
+        }
+        
+        // Exclude common false positives
+        const falsePositives = ['example.com', 'test.com', 'localhost', 'domain.com', 'website.com'];
+        if (falsePositives.some(fp => withoutProtocol.startsWith(fp))) return false;
+        
+        // Must not be just punctuation
+        if (!/[a-zA-Z0-9]/.test(withoutProtocol)) return false;
+        
+        return true;
     }
     
     addToHistory(url) {
