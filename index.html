@@ -90,34 +90,85 @@
             z-index: 50;
         }
 
-        .link-marker {
+        .precise-marker {
             position: absolute;
-            background: rgba(0, 255, 0, 0.3);
-            border: 2px solid #00ff00;
-            border-radius: 4px;
+            background: rgba(0, 255, 0, 0.2);
+            border: 1px solid #00ff00;
+            border-radius: 2px;
+            pointer-events: none;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 0.6; }
+            50% { opacity: 1; }
+        }
+
+        .links-panel {
+            position: absolute;
+            bottom: 80px;
+            left: 20px;
+            max-width: 300px;
+            max-height: 200px;
+            background: rgba(0, 0, 0, 0.9);
+            border-radius: 8px;
+            padding: 10px;
+            overflow-y: auto;
+            backdrop-filter: blur(10px);
+            z-index: 90;
+            display: none;
+        }
+
+        .links-panel.show {
+            display: block;
+        }
+
+        .links-header {
+            color: #00ff00;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-align: center;
+        }
+
+        .link-item {
+            display: flex;
+            align-items: center;
+            padding: 8px;
+            margin: 4px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 6px;
             cursor: pointer;
-            pointer-events: all;
             transition: all 0.2s ease;
+            border: 1px solid transparent;
         }
 
-        .link-marker:hover {
-            background: rgba(0, 255, 0, 0.5);
-            transform: scale(1.02);
+        .link-item:hover {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+            transform: translateX(5px);
         }
 
-        .link-text {
-            position: absolute;
-            bottom: -25px;
-            left: 0;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 4px 8px;
-            border-radius: 4px;
+        .link-number {
+            background: #00ff00;
+            color: #000;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
             font-size: 12px;
-            white-space: nowrap;
-            max-width: 200px;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-weight: bold;
+            margin-right: 10px;
+            flex-shrink: 0;
+        }
+
+        .link-url {
+            font-size: 12px;
+            color: white;
+            word-break: break-all;
+            line-height: 1.2;
         }
 
         .status {
@@ -150,6 +201,11 @@
         <div id="overlay" class="overlay"></div>
         
         <div id="status" class="status">Initializing camera...</div>
+        
+        <div id="linksPanel" class="links-panel">
+            <div class="links-header">📱 Detected Links</div>
+            <div id="linksList"></div>
+        </div>
         
         <div class="controls">
             <button id="scanBtn" disabled>Scan for Links</button>

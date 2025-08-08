@@ -5,12 +5,16 @@ class CameraLinkScanner {
         this.status = document.getElementById('status');
         this.scanBtn = document.getElementById('scanBtn');
         this.toggleCameraBtn = document.getElementById('toggleCamera');
+        this.linksList = document.getElementById('linksList');
+        this.linksPanel = document.getElementById('linksPanel');
         
         this.currentStream = null;
         this.facingMode = 'environment'; // Start with back camera
         this.isScanning = false;
         this.worker = null;
         this.detectedLinks = [];
+        this.lastScanTime = 0;
+        this.scanCooldown = 2000; // 2 seconds between scans
         
         this.init();
     }
@@ -30,7 +34,9 @@ class CameraLinkScanner {
         this.updateStatus('Loading OCR engine...', 'loading');
         this.worker = await Tesseract.createWorker('eng');
         await this.worker.setParameters({
-            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.:/?#[]@!$&\'()*+,;=%-_~'
+            tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.:/?#[]@!$&\'()*+,;=%-_~',
+            tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+            preserve_interword_spaces: '1'
         });
     }
     
@@ -68,12 +74,13 @@ class CameraLinkScanner {
         this.scanBtn.addEventListener('click', () => this.scanForLinks());
         this.toggleCameraBtn.addEventListener('click', () => this.toggleCamera());
         
-        // Auto-scan every 3 seconds when not manually scanning
+        // Auto-scan with throttling
         setInterval(() => {
-            if (!this.isScanning) {
+            const now = Date.now();
+            if (!this.isScanning && (now - this.lastScanTime) > this.scanCooldown) {
                 this.scanForLinks();
             }
-        }, 3000);
+        }, 1000);
     }
     
     async toggleCamera() {
@@ -85,6 +92,7 @@ class CameraLinkScanner {
         if (this.isScanning || !this.worker) return;
         
         this.isScanning = true;
+        this.lastScanTime = Date.now();
         this.scanBtn.disabled = true;
         this.updateStatus('Scanning for links...', 'loading');
         
@@ -92,14 +100,19 @@ class CameraLinkScanner {
             const canvas = document.createElement('canvas');
             const ctx = canvas.getContext('2d');
             
-            canvas.width = this.video.videoWidth;
-            canvas.height = this.video.videoHeight;
-            ctx.drawImage(this.video, 0, 0);
+            // Reduce canvas size for faster processing
+            const scale = 0.5;
+            canvas.width = this.video.videoWidth * scale;
+            canvas.height = this.video.videoHeight * scale;
+            
+            // Enhance image for better OCR
+            ctx.filter = 'contrast(1.2) brightness(1.1)';
+            ctx.drawImage(this.video, 0, 0, canvas.width, canvas.height);
             
             const { data } = await this.worker.recognize(canvas);
             const text = data.text;
             
-            this.detectAndDisplayLinks(text, data.words);
+            this.detectAndDisplayLinks(text, data.words, scale);
             
         } catch (error) {
             console.error('OCR error:', error);
@@ -113,71 +126,119 @@ class CameraLinkScanner {
         }
     }
     
-    detectAndDisplayLinks(text, words) {
-        // Clear previous markers
+    detectAndDisplayLinks(text, words, canvasScale = 1) {
+        // Clear previous markers and list
         this.overlay.innerHTML = '';
+        this.linksList.innerHTML = '';
         this.detectedLinks = [];
         
-        // Enhanced URL regex pattern
-        const urlPattern = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/gi;
-        const matches = text.match(urlPattern);
+        // Enhanced URL regex patterns
+        const urlPatterns = [
+            /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
+            /www\.[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            /[a-zA-Z0-9][a-zA-Z0-9-]{1,61}[a-zA-Z0-9]\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
+        ];
         
-        if (!matches) {
+        const foundUrls = new Set();
+        
+        urlPatterns.forEach(pattern => {
+            const matches = text.match(pattern);
+            if (matches) {
+                matches.forEach(url => {
+                    // Clean up the URL
+                    url = url.replace(/[.,;!?]+$/, ''); // Remove trailing punctuation
+                    if (url.length > 4 && this.isValidUrl(url)) {
+                        foundUrls.add(url);
+                    }
+                });
+            }
+        });
+        
+        if (foundUrls.size === 0) {
             return;
         }
         
         const videoRect = this.video.getBoundingClientRect();
-        const scaleX = videoRect.width / this.video.videoWidth;
-        const scaleY = videoRect.height / this.video.videoHeight;
+        const scaleX = videoRect.width / (this.video.videoWidth * canvasScale);
+        const scaleY = videoRect.height / (this.video.videoHeight * canvasScale);
         
-        matches.forEach((url, index) => {
-            // Find the word positions that match this URL
-            const urlWords = words.filter(word => 
-                url.toLowerCase().includes(word.text.toLowerCase()) || 
-                word.text.toLowerCase().includes(url.toLowerCase())
-            );
+        foundUrls.forEach((url, index) => {
+            this.detectedLinks.push(url);
+            
+            // Find words that are part of this URL
+            const urlWords = this.findUrlWords(url, words);
             
             if (urlWords.length > 0) {
-                // Calculate bounding box for the entire URL
-                const minX = Math.min(...urlWords.map(w => w.bbox.x0));
-                const minY = Math.min(...urlWords.map(w => w.bbox.y0));
-                const maxX = Math.max(...urlWords.map(w => w.bbox.x1));
-                const maxY = Math.max(...urlWords.map(w => w.bbox.y1));
-                
-                const marker = this.createLinkMarker(
-                    url,
-                    minX * scaleX,
-                    minY * scaleY,
-                    (maxX - minX) * scaleX,
-                    (maxY - minY) * scaleY
-                );
-                
-                this.overlay.appendChild(marker);
-                this.detectedLinks.push(url);
+                // Create small precise markers
+                urlWords.forEach(word => {
+                    const marker = this.createPreciseMarker(
+                        word.bbox.x0 * scaleX,
+                        word.bbox.y0 * scaleY,
+                        (word.bbox.x1 - word.bbox.x0) * scaleX,
+                        (word.bbox.y1 - word.bbox.y0) * scaleY
+                    );
+                    this.overlay.appendChild(marker);
+                });
             }
+            
+            // Add to links list
+            this.addToLinksList(url, index);
         });
         
         if (this.detectedLinks.length > 0) {
-            this.updateStatus(`Found ${this.detectedLinks.length} link(s) - Tap to open`, 'ready');
+            this.updateStatus(`Found ${this.detectedLinks.length} link(s) - Select from list`, 'ready');
+            this.linksPanel.classList.add('show');
+        } else {
+            this.linksPanel.classList.remove('show');
         }
     }
     
-    createLinkMarker(url, x, y, width, height) {
+    createPreciseMarker(x, y, width, height) {
         const marker = document.createElement('div');
-        marker.className = 'link-marker';
+        marker.className = 'precise-marker';
         marker.style.left = `${x}px`;
         marker.style.top = `${y}px`;
         marker.style.width = `${width}px`;
         marker.style.height = `${height}px`;
         
-        const linkText = document.createElement('div');
-        linkText.className = 'link-text';
-        linkText.textContent = this.formatUrl(url);
-        marker.appendChild(linkText);
-        
-        marker.addEventListener('click', () => this.openLink(url));
-        
         return marker;
+    }
+    
+    findUrlWords(url, words) {
+        const urlParts = url.toLowerCase().split(/[\/.:]/);
+        return words.filter(word => {
+            const wordText = word.text.toLowerCase();
+            return urlParts.some(part => 
+                part.length > 2 && (wordText.includes(part) || part.includes(wordText))
+            ) && word.confidence > 60;
+        });
+    }
+    
+    isValidUrl(url) {
+        // Check if it looks like a valid URL
+        const hasValidTLD = /\.[a-zA-Z]{2,}/.test(url);
+        const hasValidFormat = /^[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z0-9]\.[a-zA-Z]{2,}/.test(url.replace(/^https?:\/\//, '').replace(/^www\./, ''));
+        const notTooShort = url.length >= 4;
+        const notCommonWords = !['com.', 'org.', 'net.', 'edu.'].some(word => url.toLowerCase() === word);
+        
+        return hasValidTLD && hasValidFormat && notTooShort && notCommonWords;
+    }
+    
+    addToLinksList(url, index) {
+        const listItem = document.createElement('div');
+        listItem.className = 'link-item';
+        listItem.innerHTML = `
+            <span class="link-number">${index + 1}</span>
+            <span class="link-url">${this.truncateUrl(url)}</span>
+        `;
+        
+        listItem.addEventListener('click', () => this.openLink(url));
+        this.linksList.appendChild(listItem);
+    }
+    
+    truncateUrl(url) {
+        if (url.length <= 30) return url;
+        return url.substring(0, 27) + '...';
     }
     
     formatUrl(url) {
