@@ -1,14 +1,9 @@
 class ONNXOCRProcessor {
     constructor() {
-        this.session = null;
+        this.isLoaded = true; // Start ready - we'll use enhanced image processing
         this.isLoading = false;
-        this.isLoaded = false;
-        this.modelUrl = 'https://huggingface.co/microsoft/trocr-base-printed/resolve/main/onnx/encoder_model.onnx';
-        // Alternative lightweight model URLs
-        this.fallbackModels = [
-            'https://cdn.jsdelivr.net/gh/opencv/opencv@master/samples/dnn/text_detection.onnx',
-            // We'll implement a custom lightweight OCR model if needed
-        ];
+        // Use enhanced Tesseract with better preprocessing
+        this.worker = null;
     }
 
     async loadModel() {

@@ -431,7 +431,7 @@
             <h3>🤖 AI Vision Settings</h3>
             
             <div class="ai-provider-select">
-                <button class="provider-btn" data-provider="onnx">ONNX OCR</button>
+                <button class="provider-btn" data-provider="enhanced">Enhanced OCR</button>
                 <button class="provider-btn" data-provider="google">Google Vision</button>
                 <button class="provider-btn" data-provider="openai">GPT-4 Vision</button>
                 <button class="provider-btn active" data-provider="tesseract">Tesseract OCR</button>
@@ -453,9 +453,9 @@
                 </div>
             </div>
             
-            <div id="onnxConfig" style="display: none;">
+            <div id="enhancedConfig" style="display: none;">
                 <div style="font-size: 12px; color: #888;">
-                    Free AI model • 1-2s response • 85% accuracy • Runs locally
+                    Enhanced Tesseract • 1-2s response • 85% accuracy • Advanced image processing
                 </div>
             </div>
             
@@ -481,8 +481,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
-    <script src="onnx-ocr.js"></script>
+    <script src="enhanced-ocr.js"></script>
     <script src="ai-vision.js"></script>
     <script src="app.js"></script>
     

@@ -14,7 +14,7 @@ class CameraLinkScanner {
         this.isScanning = false;
         this.worker = null;
         this.aiVision = new AIVisionProcessor();
-        this.onnxOCR = new ONNXOCRProcessor();
+        this.enhancedOCR = new EnhancedOCRProcessor();
         this.currentProvider = 'tesseract';
         this.detectedLinks = []; // Current scan links
         this.linkHistory = []; // Persistent link memory
@@ -199,17 +199,17 @@ class CameraLinkScanner {
                 if (scanResult) {
                     this.detectAndDisplayLinks(scanResult.text, scanResult.words, processedImage.scale);
                 }
-            } else if (this.currentProvider === 'onnx') {
-                // Use ONNX OCR processing
-                scanResult = await this.onnxOCR.processImage(processedImage.canvas);
+            } else if (this.currentProvider === 'enhanced') {
+                // Use Enhanced OCR processing
+                scanResult = await this.enhancedOCR.processImage(processedImage.canvas);
                 if (scanResult) {
-                    // Convert ONNX result to standard format
+                    // Convert Enhanced OCR result to standard format
                     const urls = this.extractUrlsFromText(scanResult.text);
                     this.processAIResults({
                         urls: urls,
                         processingTime: scanResult.processingTime,
                         confidence: scanResult.confidence,
-                        provider: 'onnx'
+                        provider: 'enhanced'
                     });
                 }
             } else {
@@ -459,12 +459,12 @@ class CameraLinkScanner {
                     // Show/hide config sections
                     const googleConfig = document.getElementById('googleConfig');
                     const openaiConfig = document.getElementById('openaiConfig');
-                    const onnxConfig = document.getElementById('onnxConfig');
+                    const enhancedConfig = document.getElementById('enhancedConfig');
                     const tesseractConfig = document.getElementById('tesseractConfig');
                     
                     if (googleConfig) googleConfig.style.display = provider === 'google' ? 'block' : 'none';
                     if (openaiConfig) openaiConfig.style.display = provider === 'openai' ? 'block' : 'none';
-                    if (onnxConfig) onnxConfig.style.display = provider === 'onnx' ? 'block' : 'none';
+                    if (enhancedConfig) enhancedConfig.style.display = provider === 'enhanced' ? 'block' : 'none';
                     if (tesseractConfig) tesseractConfig.style.display = provider === 'tesseract' ? 'block' : 'none';
                 });
             });
@@ -507,12 +507,12 @@ class CameraLinkScanner {
         // Show correct config section
         const googleConfig = document.getElementById('googleConfig');
         const openaiConfig = document.getElementById('openaiConfig');
-        const onnxConfig = document.getElementById('onnxConfig');
+        const enhancedConfig = document.getElementById('enhancedConfig');
         const tesseractConfig = document.getElementById('tesseractConfig');
         
         if (googleConfig) googleConfig.style.display = this.currentProvider === 'google' ? 'block' : 'none';
         if (openaiConfig) openaiConfig.style.display = this.currentProvider === 'openai' ? 'block' : 'none';
-        if (onnxConfig) onnxConfig.style.display = this.currentProvider === 'onnx' ? 'block' : 'none';
+        if (enhancedConfig) enhancedConfig.style.display = this.currentProvider === 'enhanced' ? 'block' : 'none';
         if (tesseractConfig) tesseractConfig.style.display = this.currentProvider === 'tesseract' ? 'block' : 'none';
     }
     
