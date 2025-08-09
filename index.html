@@ -504,14 +504,13 @@
             <h3>🤖 AI Vision Settings</h3>
             
             <div class="ai-provider-select">
-                <button class="provider-btn" data-provider="free-ocr">⚡ Free OCR</button>
-                <button class="provider-btn" data-provider="transformers">🔥 TrOCR AI</button>
+                <button class="provider-btn active" data-provider="free-ocr">⚡ Free OCR</button>
                 <button class="provider-btn" data-provider="azure">Azure Vision</button>
                 <button class="provider-btn" data-provider="ollama">Ollama Local</button>
                 <button class="provider-btn" data-provider="enhanced">Enhanced OCR</button>
                 <button class="provider-btn" data-provider="google">Google Vision</button>
                 <button class="provider-btn" data-provider="openai">GPT-4 Vision</button>
-                <button class="provider-btn active" data-provider="tesseract">Tesseract OCR</button>
+                <button class="provider-btn" data-provider="tesseract">Tesseract OCR</button>
             </div>
             
             <div id="googleConfig">
@@ -536,12 +535,15 @@
                 </div>
             </div>
             
-            <div id="freeOcrConfig" style="display: none;">
+            <div id="freeOcrConfig" style="display: block;">
                 <div style="font-size: 12px; color: #888;">
                     ⚡ Free Cloud OCR • OCR.space API • 1-2s response • 85% accuracy • No setup needed
                 </div>
                 <div style="font-size: 10px; color: #4CAF50; margin-top: 5px;">
-                    ✅ RECOMMENDED: Works immediately, perfect for Czech domains like .cz
+                    ✅ ACTIVE: 10 free scans per 10 minutes. Use "Scan for Links" button or region selection.
+                </div>
+                <div style="font-size: 10px; color: #FFA500; margin-top: 3px;">
+                    💡 For unlimited scanning, use Azure Vision (5K free/month) with your own API key
                 </div>
             </div>
 
@@ -577,7 +579,7 @@
                 </div>
             </div>
 
-            <div id="tesseractConfig" style="display: block;">
+            <div id="tesseractConfig" style="display: none;">
                 <div style="font-size: 12px; color: #888;">
                     Free local processing • 2-3s response • 70% accuracy
                 </div>

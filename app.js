@@ -51,7 +51,7 @@ class CameraLinkScanner {
             this.aiVision.loadApiKeys();
             this.azureOCR.loadApiKey();
             this.ollamaOCR.loadConfig();
-            this.currentProvider = localStorage.getItem('ai_preferred_provider') || 'tesseract';
+            this.currentProvider = localStorage.getItem('ai_preferred_provider') || 'free-ocr';
             
             // Setup event listeners first
             console.log('Setting up event listeners...');
@@ -177,13 +177,8 @@ class CameraLinkScanner {
         this.selectRegionBtn.addEventListener('click', () => this.startRegionSelection());
         this.cancelRegionBtn.addEventListener('click', () => this.cancelRegionSelection());
         
-        // Smart auto-scan with region detection
-        setInterval(() => {
-            const now = Date.now();
-            if (!this.isScanning && (now - this.lastScanTime) > this.scanCooldown) {
-                this.smartScan();
-            }
-        }, 800); // More frequent checks
+        // Auto-scan disabled to prevent API rate limits
+        // Users should manually scan or use region selection instead
         
         // Add motion detection for faster scanning
         this.setupMotionDetection();

@@ -3,19 +3,41 @@ class FreeOCRProcessor {
         this.isConfigured = true; // No setup needed
         this.apiUrl = 'https://api.ocr.space/parse/image';
         this.apiKey = 'helloworld'; // Free demo key
+        this.lastRequestTime = 0;
+        this.requestCount = 0;
+        this.rateLimitWindow = 600000; // 10 minutes in milliseconds
+        this.maxRequests = 10;
     }
 
     async processImage(canvas) {
         const startTime = performance.now();
         
+        // Check rate limit
+        const now = Date.now();
+        if (now - this.lastRequestTime > this.rateLimitWindow) {
+            // Reset counter if window has passed
+            this.requestCount = 0;
+        }
+        
+        if (this.requestCount >= this.maxRequests) {
+            const waitTime = Math.ceil((this.rateLimitWindow - (now - this.lastRequestTime)) / 1000 / 60);
+            throw new Error(`Rate limit exceeded. Please wait ${waitTime} minutes before using Free OCR again. Try Azure Vision (5K free/month) or region selection to reduce API calls.`);
+        }
+        
         try {
             console.log('Free OCR: Processing image...');
+            console.log(`Free OCR: Request ${this.requestCount + 1}/${this.maxRequests} in current window`);
             
             // Convert canvas to blob
             const blob = await this.canvasToBlob(canvas);
             
             // Call OCR.space free API
             const result = await this.callOCRSpaceAPI(blob);
+            
+            // Update rate limit tracking
+            this.requestCount++;
+            this.lastRequestTime = Date.now();
+            
             const processingTime = performance.now() - startTime;
             
             // Extract text from response
