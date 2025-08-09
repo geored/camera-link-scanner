@@ -306,10 +306,11 @@
 
         .links-panel {
             position: fixed;
-            bottom: 20px;
+            top: 50%;
             left: 20px;
-            width: 320px;
-            max-height: calc(100vh - 200px);
+            transform: translateY(-50%);
+            width: 300px;
+            max-height: 60vh;
             background: rgba(5, 15, 25, 0.9);
             border: 1px solid rgba(0, 204, 255, 0.3);
             padding: 0;
@@ -317,8 +318,6 @@
             z-index: 90;
             display: none;
             transition: all 0.3s ease;
-            transform: translateY(10px);
-            opacity: 0;
             border-radius: 4px;
             box-shadow: 
                 0 0 15px rgba(0, 0, 0, 0.5),
@@ -328,8 +327,9 @@
         .links-panel.show {
             display: block;
             opacity: 1;
-            transform: translateY(0) scale(1);
+            transform: translateY(-50%);
         }
+
 
         .links-header {
             color: rgba(255, 255, 255, 0.9);
@@ -372,7 +372,7 @@
         }
 
         #linksList {
-            max-height: 180px;
+            max-height: calc(60vh - 80px);
             overflow-y: auto;
             padding: 8px 12px;
             scrollbar-width: thin;
