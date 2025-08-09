@@ -656,16 +656,16 @@ class CameraLinkScanner {
         console.log('OCR detected text:', text);
         console.log('OCR confidence:', words ? words.map(w => `${w.text}(${w.confidence})`).join(' ') : 'N/A');
         
-        // Enhanced URL regex patterns for better detection
+        // Enhanced URL regex patterns for better detection with Czech characters
         const urlPatterns = [
             // Full HTTP/HTTPS URLs
             /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-            // www domains (enhanced)
-            /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            // Domain.extension patterns (enhanced for Czech domains)
-            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            // OCR-friendly patterns with spaces
-            /[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z]{2,4}/gi,
+            // www domains with Czech characters
+            /www\.[\w\u00C0-\u017F][\w\u00C0-\u017F.-]*\.[\w\u00C0-\u017F]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // Domain.extension patterns with Czech characters
+            /[\w\u00C0-\u017F][\w\u00C0-\u017F.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // OCR-friendly patterns with spaces and Czech characters
+            /[\w\u00C0-\u017F-]+\s*\.\s*[\w\u00C0-\u017F-]+\s*\.\s*[a-zA-Z]{2,4}/gi,
             // Social media and common patterns
             /(?:youtube\.com|youtu\.be|twitter\.com|facebook\.com|instagram\.com|linkedin\.com|github\.com|reddit\.com)\/[^\s<>"{}|\\^`\[\]]*/gi,
             // IP addresses with ports
@@ -978,16 +978,16 @@ class CameraLinkScanner {
         console.log('Extracting URLs from text:', text);
         
         const urlPatterns = [
-            // Full HTTP/HTTPS URLs
+            // Full HTTP/HTTPS URLs with international characters
             /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-            // www domains (enhanced for Czech domains)
-            /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            // Domain.extension patterns (enhanced for Czech .cz domains)
-            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            // Specific patterns for fragmented text (common in OCR)
-            /[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z]{2,4}/gi,
-            // Pattern for "koureni-zabiji.cz" type domains
-            /[a-zA-Z0-9-]+\s*[\.-]\s*[a-zA-Z0-9-]+\s*[\.-]\s*[a-zA-Z]{2,4}/gi
+            // www domains with Czech characters (Ř, Ů, etc.)
+            /www\.[\w\u00C0-\u017F][\w\u00C0-\u017F.-]*\.[\w\u00C0-\u017F]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // Domain.extension patterns with international characters
+            /[\w\u00C0-\u017F][\w\u00C0-\u017F.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // Specific patterns for fragmented text with Czech characters
+            /[\w\u00C0-\u017F-]+\s*\.\s*[\w\u00C0-\u017F-]+\s*\.\s*[a-zA-Z]{2,4}/gi,
+            // Pattern for Czech domains like "kouřeni-zabiji.cz"
+            /[\w\u00C0-\u017F-]+\s*[\.-]\s*[\w\u00C0-\u017F-]+\s*[\.-]\s*[a-zA-Z]{2,4}/gi
         ];
 
         const foundUrls = new Set();
@@ -1054,8 +1054,8 @@ class CameraLinkScanner {
                 console.log('Empty domain part');
                 return false;
             }
-            // Allow hyphens in domain names (like koureni-zabiji)
-            if (!/^[a-zA-Z0-9-]+$/.test(part)) {
+            // Allow hyphens and Czech characters in domain names (like kouřeni-zabiji)
+            if (!/^[\w\u00C0-\u017F-]+$/.test(part)) {
                 console.log('Invalid characters in domain part:', part);
                 return false;
             }
@@ -1387,8 +1387,8 @@ class CameraLinkScanner {
         
         const urlPatterns = [
             /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-            /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
+            /www\.[\w\u00C0-\u017F][\w\u00C0-\u017F.-]*\.[\w\u00C0-\u017F]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            /[\w\u00C0-\u017F][\w\u00C0-\u017F.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
         ];
         
         const foundUrls = new Set();
