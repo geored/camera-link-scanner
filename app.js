@@ -35,15 +35,27 @@ class CameraLinkScanner {
     
     async init() {
         try {
-            // Initialize AI vision system
-            this.aiVision.loadApiKeys();
-            this.currentProvider = localStorage.getItem('ai_preferred_provider') || 'google';
+            console.log('Starting app initialization...');
             
-            // Initialize Tesseract as fallback
-            await this.initTesseract();
-            await this.startCamera();
+            // Initialize AI vision system
+            console.log('Initializing AI vision...');
+            this.aiVision.loadApiKeys();
+            this.currentProvider = localStorage.getItem('ai_preferred_provider') || 'tesseract';
+            
+            // Setup event listeners first
+            console.log('Setting up event listeners...');
             this.setupEventListeners();
             this.setupAIConfig();
+            
+            // Initialize Tesseract as fallback
+            console.log('Initializing Tesseract...');
+            await this.initTesseract();
+            
+            // Start camera last
+            console.log('Starting camera...');
+            await this.startCamera();
+            
+            console.log('App initialization complete');
         } catch (error) {
             console.error('Initialization error:', error);
             this.updateStatus('Error: ' + error.message, 'error');
@@ -84,6 +96,7 @@ class CameraLinkScanner {
             }
             
             this.updateStatus('Starting camera...', 'loading');
+            console.log('Requesting camera access...');
             
             const constraints = {
                 video: {
@@ -95,15 +108,38 @@ class CameraLinkScanner {
             
             this.currentStream = await navigator.mediaDevices.getUserMedia(constraints);
             this.video.srcObject = this.currentStream;
+            console.log('Camera stream assigned to video element');
             
             this.video.onloadedmetadata = () => {
-                this.updateStatus('Camera ready - Point at text with links', 'ready');
+                console.log('Video metadata loaded, camera ready');
+                this.updateStatus(`Camera ready - Using ${this.currentProvider.toUpperCase()}`, 'ready');
                 this.scanBtn.disabled = false;
+            };
+            
+            // Add error handler for video element
+            this.video.onerror = (e) => {
+                console.error('Video element error:', e);
+                this.updateStatus('Video playback error', 'error');
             };
             
         } catch (error) {
             console.error('Camera error:', error);
-            this.updateStatus('Camera access denied or unavailable', 'error');
+            this.updateStatus(`Camera error: ${error.message}`, 'error');
+            
+            // Try fallback constraints
+            if (error.name === 'OverconstrainedError') {
+                console.log('Trying fallback camera constraints...');
+                try {
+                    const fallbackConstraints = { video: true };
+                    this.currentStream = await navigator.mediaDevices.getUserMedia(fallbackConstraints);
+                    this.video.srcObject = this.currentStream;
+                    this.updateStatus('Camera ready (fallback mode)', 'ready');
+                    this.scanBtn.disabled = false;
+                } catch (fallbackError) {
+                    console.error('Fallback camera error:', fallbackError);
+                    this.updateStatus('Camera access failed', 'error');
+                }
+            }
         }
     }
     
@@ -378,42 +414,77 @@ class CameraLinkScanner {
     }
     
     setupAIConfig() {
-        // Provider selection
+        try {
+            // Provider selection
+            const providerBtns = document.querySelectorAll('.provider-btn');
+            if (providerBtns.length === 0) {
+                console.warn('Provider buttons not found, AI config not available');
+                return;
+            }
+            
+            providerBtns.forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const provider = btn.dataset.provider;
+                    this.switchProvider(provider);
+                    
+                    // Update UI
+                    providerBtns.forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                    
+                    // Show/hide config sections
+                    const googleConfig = document.getElementById('googleConfig');
+                    const openaiConfig = document.getElementById('openaiConfig');
+                    const tesseractConfig = document.getElementById('tesseractConfig');
+                    
+                    if (googleConfig) googleConfig.style.display = provider === 'google' ? 'block' : 'none';
+                    if (openaiConfig) openaiConfig.style.display = provider === 'openai' ? 'block' : 'none';
+                    if (tesseractConfig) tesseractConfig.style.display = provider === 'tesseract' ? 'block' : 'none';
+                });
+            });
+            
+            // API key inputs
+            const googleKeyInput = document.getElementById('googleApiKey');
+            const openaiKeyInput = document.getElementById('openaiApiKey');
+            
+            if (googleKeyInput) {
+                googleKeyInput.addEventListener('input', (e) => {
+                    this.aiVision.setApiKey('google', e.target.value);
+                });
+                googleKeyInput.value = localStorage.getItem('ai_google_key') || '';
+            }
+            
+            if (openaiKeyInput) {
+                openaiKeyInput.addEventListener('input', (e) => {
+                    this.aiVision.setApiKey('openai', e.target.value);
+                });
+                openaiKeyInput.value = localStorage.getItem('ai_openai_key') || '';
+            }
+            
+            // Set initial provider UI
+            this.setInitialProvider();
+        } catch (error) {
+            console.error('Error setting up AI config:', error);
+        }
+    }
+    
+    setInitialProvider() {
         const providerBtns = document.querySelectorAll('.provider-btn');
         providerBtns.forEach(btn => {
-            btn.addEventListener('click', () => {
-                const provider = btn.dataset.provider;
-                this.switchProvider(provider);
-                
-                // Update UI
-                providerBtns.forEach(b => b.classList.remove('active'));
+            if (btn.dataset.provider === this.currentProvider) {
                 btn.classList.add('active');
-                
-                // Show/hide config sections
-                document.getElementById('googleConfig').style.display = provider === 'google' ? 'block' : 'none';
-                document.getElementById('openaiConfig').style.display = provider === 'openai' ? 'block' : 'none';
-                document.getElementById('tesseractConfig').style.display = provider === 'tesseract' ? 'block' : 'none';
-            });
+            } else {
+                btn.classList.remove('active');
+            }
         });
         
-        // API key inputs
-        const googleKeyInput = document.getElementById('googleApiKey');
-        const openaiKeyInput = document.getElementById('openaiApiKey');
+        // Show correct config section
+        const googleConfig = document.getElementById('googleConfig');
+        const openaiConfig = document.getElementById('openaiConfig');
+        const tesseractConfig = document.getElementById('tesseractConfig');
         
-        googleKeyInput.addEventListener('input', (e) => {
-            this.aiVision.setApiKey('google', e.target.value);
-        });
-        
-        openaiKeyInput.addEventListener('input', (e) => {
-            this.aiVision.setApiKey('openai', e.target.value);
-        });
-        
-        // Load saved keys
-        googleKeyInput.value = localStorage.getItem('ai_google_key') || '';
-        openaiKeyInput.value = localStorage.getItem('ai_openai_key') || '';
-        
-        // Set initial provider UI
-        this.switchProvider(this.currentProvider);
+        if (googleConfig) googleConfig.style.display = this.currentProvider === 'google' ? 'block' : 'none';
+        if (openaiConfig) openaiConfig.style.display = this.currentProvider === 'openai' ? 'block' : 'none';
+        if (tesseractConfig) tesseractConfig.style.display = this.currentProvider === 'tesseract' ? 'block' : 'none';
     }
     
     switchProvider(provider) {
@@ -447,11 +518,11 @@ class CameraLinkScanner {
         // Ultra-precise URL regex patterns
         const urlPatterns = [
             // Full HTTP/HTTPS URLs
-            /https?:\/\/(?:[-\w.])+(?:\:[0-9]+)?(?:\/(?:[\w\/_.])*(?:\?(?:[\w&=%.])*)?(?:#(?:[\w.])*)?)?/gi,
+            /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
             // www domains
-            /www\.(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)++[a-zA-Z]{2,6}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
             // Domain.com patterns
-            /(?:[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?\.)++(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?\b/gi,
+            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
             // Social media and common patterns
             /(?:youtube\.com|youtu\.be|twitter\.com|facebook\.com|instagram\.com|linkedin\.com|github\.com|reddit\.com)\/[^\s<>"{}|\\^`\[\]]*/gi,
             // IP addresses with ports
