@@ -57,6 +57,82 @@
             z-index: 100;
         }
 
+        .ai-config {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(0, 255, 0, 0.3);
+            z-index: 110;
+            display: none;
+            min-width: 300px;
+        }
+
+        .ai-config.show {
+            display: block;
+        }
+
+        .ai-config h3 {
+            color: #00ff00;
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .ai-provider-select {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+
+        .provider-btn {
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.1);
+            color: white;
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s ease;
+        }
+
+        .provider-btn.active {
+            background: rgba(0, 255, 0, 0.2);
+            border-color: #00ff00;
+            color: #00ff00;
+        }
+
+        .api-key-input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 4px;
+            color: white;
+            font-size: 12px;
+        }
+
+        .api-key-input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .config-toggle {
+            position: absolute;
+            top: 80px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            border: 1px solid rgba(0, 255, 0, 0.5);
+            padding: 8px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            z-index: 100;
+        }
+
         button {
             padding: 12px 24px;
             background: rgba(255, 255, 255, 0.9);
@@ -349,6 +425,40 @@
         <div id="status" class="status">Initializing camera...</div>
         <div id="performanceInfo" class="performance-info">OCR: Ready</div>
         
+        <button id="configToggle" class="config-toggle">⚙️ AI Config</button>
+        
+        <div id="aiConfig" class="ai-config">
+            <h3>🤖 AI Vision Settings</h3>
+            
+            <div class="ai-provider-select">
+                <button class="provider-btn active" data-provider="google">Google Vision</button>
+                <button class="provider-btn" data-provider="openai">GPT-4 Vision</button>
+                <button class="provider-btn" data-provider="tesseract">Tesseract OCR</button>
+            </div>
+            
+            <div id="googleConfig">
+                <label style="color: #ccc; font-size: 12px;">Google Vision API Key:</label>
+                <input type="password" class="api-key-input" id="googleApiKey" placeholder="Enter Google Vision API key">
+                <div style="font-size: 10px; color: #888; margin-top: 5px;">
+                    1000 free requests/month • 1-2s response • 95% accuracy
+                </div>
+            </div>
+            
+            <div id="openaiConfig" style="display: none;">
+                <label style="color: #ccc; font-size: 12px;">OpenAI API Key:</label>
+                <input type="password" class="api-key-input" id="openaiApiKey" placeholder="Enter OpenAI API key">
+                <div style="font-size: 10px; color: #888; margin-top: 5px;">
+                    $0.01 per image • 2-4s response • 98% accuracy
+                </div>
+            </div>
+            
+            <div id="tesseractConfig" style="display: none;">
+                <div style="font-size: 12px; color: #888;">
+                    Free local processing • 2-3s response • 70% accuracy
+                </div>
+            </div>
+        </div>
+        
         <div id="linksPanel" class="links-panel">
             <div class="links-header">
                 <span>📱 Link History</span>
@@ -364,6 +474,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <script src="ai-vision.js"></script>
     <script src="app.js"></script>
     
     <!-- PWA Service Worker Registration -->

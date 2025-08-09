@@ -13,6 +13,8 @@ class CameraLinkScanner {
         this.facingMode = 'environment'; // Start with back camera
         this.isScanning = false;
         this.worker = null;
+        this.aiVision = new AIVisionProcessor();
+        this.currentProvider = 'google';
         this.detectedLinks = []; // Current scan links
         this.linkHistory = []; // Persistent link memory
         this.maxHistorySize = 50; // Keep up to 50 links in memory
@@ -33,9 +35,15 @@ class CameraLinkScanner {
     
     async init() {
         try {
+            // Initialize AI vision system
+            this.aiVision.loadApiKeys();
+            this.currentProvider = localStorage.getItem('ai_preferred_provider') || 'google';
+            
+            // Initialize Tesseract as fallback
             await this.initTesseract();
             await this.startCamera();
             this.setupEventListeners();
+            this.setupAIConfig();
         } catch (error) {
             console.error('Initialization error:', error);
             this.updateStatus('Error: ' + error.message, 'error');
@@ -111,6 +119,13 @@ class CameraLinkScanner {
             }
         });
         
+        // Add config toggle listener
+        const configToggle = document.getElementById('configToggle');
+        const aiConfig = document.getElementById('aiConfig');
+        configToggle.addEventListener('click', () => {
+            aiConfig.classList.toggle('show');
+        });
+        
         // Smart auto-scan with region detection
         setInterval(() => {
             const now = Date.now();
@@ -129,26 +144,49 @@ class CameraLinkScanner {
     }
     
     async scanForLinks() {
-        if (this.isScanning || !this.worker || this.isProcessing) return;
+        if (this.isScanning || this.isProcessing) return;
         
         this.isScanning = true;
         this.isProcessing = true;
         this.lastScanTime = Date.now();
         this.scanBtn.disabled = true;
-        this.updateStatus('Scanning for links...', 'loading');
+        this.updateStatus(`Scanning with ${this.currentProvider.toUpperCase()}...`, 'loading');
         
         try {
-            // Use progressive scanning strategy
             const processedImage = this.preprocessImage();
-            const scanResult = await this.performOCR(processedImage);
+            let scanResult;
             
-            if (scanResult) {
-                this.detectAndDisplayLinks(scanResult.text, scanResult.words, processedImage.scale);
+            if (this.currentProvider === 'tesseract') {
+                // Use existing Tesseract implementation
+                scanResult = await this.performOCR(processedImage);
+                if (scanResult) {
+                    this.detectAndDisplayLinks(scanResult.text, scanResult.words, processedImage.scale);
+                }
+            } else {
+                // Use AI vision processing
+                scanResult = await this.aiVision.processImage(processedImage.canvas, this.currentProvider);
+                if (scanResult && scanResult.urls) {
+                    this.processAIResults(scanResult);
+                }
             }
             
         } catch (error) {
-            console.error('OCR error:', error);
-            this.updateStatus('Scan failed: ' + error.message, 'error');
+            console.error('AI Vision error:', error);
+            this.updateStatus(`${this.currentProvider.toUpperCase()} failed: ${error.message}`, 'error');
+            
+            // Fallback to Tesseract if AI fails
+            if (this.currentProvider !== 'tesseract') {
+                this.updateStatus('Falling back to Tesseract...', 'loading');
+                try {
+                    const processedImage = this.preprocessImage();
+                    const fallbackResult = await this.performOCR(processedImage);
+                    if (fallbackResult) {
+                        this.detectAndDisplayLinks(fallbackResult.text, fallbackResult.words, processedImage.scale);
+                    }
+                } catch (fallbackError) {
+                    this.updateStatus('All recognition methods failed', 'error');
+                }
+            }
         } finally {
             this.isScanning = false;
             this.isProcessing = false;
@@ -312,12 +350,91 @@ class CameraLinkScanner {
         }
     }
     
+    processAIResults(result) {
+        // Clear previous markers
+        this.overlay.innerHTML = '';
+        this.detectedLinks = [];
+        
+        if (result.urls && result.urls.length > 0) {
+            result.urls.forEach(urlObj => {
+                const url = typeof urlObj === 'string' ? urlObj : urlObj.url;
+                if (this.aiVision.isValidUrl(url)) {
+                    this.detectedLinks.push(url);
+                    this.addToHistory(url);
+                }
+            });
+            
+            // Update the links display
+            this.updateLinksDisplay();
+            
+            // Update performance info
+            this.updatePerformanceInfo(result.processingTime, result.confidence);
+            
+            if (this.linkHistory.length > 0) {
+                this.updateStatus(`Found ${this.detectedLinks.length} new, ${this.linkHistory.length} total links`, 'ready');
+                this.linksPanel.classList.add('show');
+            }
+        }
+    }
+    
+    setupAIConfig() {
+        // Provider selection
+        const providerBtns = document.querySelectorAll('.provider-btn');
+        providerBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const provider = btn.dataset.provider;
+                this.switchProvider(provider);
+                
+                // Update UI
+                providerBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                
+                // Show/hide config sections
+                document.getElementById('googleConfig').style.display = provider === 'google' ? 'block' : 'none';
+                document.getElementById('openaiConfig').style.display = provider === 'openai' ? 'block' : 'none';
+                document.getElementById('tesseractConfig').style.display = provider === 'tesseract' ? 'block' : 'none';
+            });
+        });
+        
+        // API key inputs
+        const googleKeyInput = document.getElementById('googleApiKey');
+        const openaiKeyInput = document.getElementById('openaiApiKey');
+        
+        googleKeyInput.addEventListener('input', (e) => {
+            this.aiVision.setApiKey('google', e.target.value);
+        });
+        
+        openaiKeyInput.addEventListener('input', (e) => {
+            this.aiVision.setApiKey('openai', e.target.value);
+        });
+        
+        // Load saved keys
+        googleKeyInput.value = localStorage.getItem('ai_google_key') || '';
+        openaiKeyInput.value = localStorage.getItem('ai_openai_key') || '';
+        
+        // Set initial provider UI
+        this.switchProvider(this.currentProvider);
+    }
+    
+    switchProvider(provider) {
+        this.currentProvider = provider;
+        this.aiVision.setPreferredProvider(provider);
+        
+        // Update status
+        this.updateStatus(`Switched to ${provider.toUpperCase()} vision`, 'ready');
+        
+        // Close config panel
+        setTimeout(() => {
+            document.getElementById('aiConfig').classList.remove('show');
+        }, 1000);
+    }
+    
     updatePerformanceInfo(processingTime, confidence) {
         const avgConfidence = confidence ? confidence.toFixed(0) : 'N/A';
         const timeColor = processingTime < 1000 ? '#00ff00' : processingTime < 2000 ? '#ffaa00' : '#ff0000';
         
         this.performanceInfo.innerHTML = `
-            <div>OCR: <span style="color: ${timeColor}">${processingTime.toFixed(0)}ms</span></div>
+            <div>${this.currentProvider.toUpperCase()}: <span style="color: ${timeColor}">${processingTime.toFixed(0)}ms</span></div>
             <div>Conf: <span style="color: #00ff00">${avgConfidence}%</span></div>
         `;
     }
