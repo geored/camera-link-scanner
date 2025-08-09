@@ -14,7 +14,8 @@ class CameraLinkScanner {
         this.isScanning = false;
         this.worker = null;
         this.aiVision = new AIVisionProcessor();
-        this.currentProvider = 'google';
+        this.onnxOCR = new ONNXOCRProcessor();
+        this.currentProvider = 'tesseract';
         this.detectedLinks = []; // Current scan links
         this.linkHistory = []; // Persistent link memory
         this.maxHistorySize = 50; // Keep up to 50 links in memory
@@ -198,8 +199,21 @@ class CameraLinkScanner {
                 if (scanResult) {
                     this.detectAndDisplayLinks(scanResult.text, scanResult.words, processedImage.scale);
                 }
+            } else if (this.currentProvider === 'onnx') {
+                // Use ONNX OCR processing
+                scanResult = await this.onnxOCR.processImage(processedImage.canvas);
+                if (scanResult) {
+                    // Convert ONNX result to standard format
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'onnx'
+                    });
+                }
             } else {
-                // Use AI vision processing
+                // Use AI vision processing (Google/OpenAI)
                 scanResult = await this.aiVision.processImage(processedImage.canvas, this.currentProvider);
                 if (scanResult && scanResult.urls) {
                     this.processAIResults(scanResult);
@@ -445,10 +459,12 @@ class CameraLinkScanner {
                     // Show/hide config sections
                     const googleConfig = document.getElementById('googleConfig');
                     const openaiConfig = document.getElementById('openaiConfig');
+                    const onnxConfig = document.getElementById('onnxConfig');
                     const tesseractConfig = document.getElementById('tesseractConfig');
                     
                     if (googleConfig) googleConfig.style.display = provider === 'google' ? 'block' : 'none';
                     if (openaiConfig) openaiConfig.style.display = provider === 'openai' ? 'block' : 'none';
+                    if (onnxConfig) onnxConfig.style.display = provider === 'onnx' ? 'block' : 'none';
                     if (tesseractConfig) tesseractConfig.style.display = provider === 'tesseract' ? 'block' : 'none';
                 });
             });
@@ -491,10 +507,12 @@ class CameraLinkScanner {
         // Show correct config section
         const googleConfig = document.getElementById('googleConfig');
         const openaiConfig = document.getElementById('openaiConfig');
+        const onnxConfig = document.getElementById('onnxConfig');
         const tesseractConfig = document.getElementById('tesseractConfig');
         
         if (googleConfig) googleConfig.style.display = this.currentProvider === 'google' ? 'block' : 'none';
         if (openaiConfig) openaiConfig.style.display = this.currentProvider === 'openai' ? 'block' : 'none';
+        if (onnxConfig) onnxConfig.style.display = this.currentProvider === 'onnx' ? 'block' : 'none';
         if (tesseractConfig) tesseractConfig.style.display = this.currentProvider === 'tesseract' ? 'block' : 'none';
     }
     
@@ -834,6 +852,38 @@ class CameraLinkScanner {
         if (diff < 3600000) return `${Math.floor(diff / 60000)}m`;
         if (diff < 86400000) return `${Math.floor(diff / 3600000)}h`;
         return `${Math.floor(diff / 86400000)}d`;
+    }
+    
+    extractUrlsFromText(text) {
+        const urlPatterns = [
+            /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
+            /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
+        ];
+
+        const foundUrls = new Set();
+        
+        urlPatterns.forEach(pattern => {
+            const matches = text.match(pattern);
+            if (matches) {
+                matches.forEach(url => {
+                    url = url.replace(/[.,;!?]+$/, '');
+                    if (this.isValidUrl(url)) {
+                        foundUrls.add(url);
+                    }
+                });
+            }
+        });
+
+        return Array.from(foundUrls).map(url => ({ url, confidence: 90 }));
+    }
+    
+    isValidUrl(url) {
+        const cleanUrl = url.toLowerCase().trim();
+        if (cleanUrl.length < 4) return false;
+        
+        const validTLDs = /\.(com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|[a-z]{2})(\.|\/|$)/;
+        return validTLDs.test(cleanUrl);
     }
     
     updateStatus(message, type = '') {
