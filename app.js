@@ -391,6 +391,11 @@ class CameraLinkScanner {
         this.overlay.innerHTML = '';
         this.detectedLinks = [];
         
+        console.log('Processing AI results:', result);
+        
+        // Update performance info regardless of whether URLs were found
+        this.updatePerformanceInfo(result.processingTime, result.confidence);
+        
         if (result.urls && result.urls.length > 0) {
             result.urls.forEach(urlObj => {
                 const url = typeof urlObj === 'string' ? urlObj : urlObj.url;
@@ -400,16 +405,22 @@ class CameraLinkScanner {
                 }
             });
             
+            console.log('Detected links:', this.detectedLinks);
+            
             // Update the links display
             this.updateLinksDisplay();
-            
-            // Update performance info
-            this.updatePerformanceInfo(result.processingTime, result.confidence);
             
             if (this.linkHistory.length > 0) {
                 this.updateStatus(`Found ${this.detectedLinks.length} new, ${this.linkHistory.length} total links`, 'ready');
                 this.linksPanel.classList.add('show');
+            } else {
+                this.updateStatus('No links detected in current scan', 'ready');
             }
+        } else {
+            // No URLs found, but API call was successful
+            console.log('No URLs detected in image');
+            this.updateStatus('No links detected - Point camera at text with URLs', 'ready');
+            this.updateLinksDisplay(); // This will show existing history if any
         }
     }
     

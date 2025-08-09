@@ -20,31 +20,54 @@ class AIVisionProcessor {
         
         try {
             const base64Image = this.canvasToBase64(imageData);
+            console.log('Google Vision: Sending request with image size:', base64Image.length);
             
+            const requestBody = {
+                requests: [{
+                    image: {
+                        content: base64Image
+                    },
+                    features: [{
+                        type: 'TEXT_DETECTION',
+                        maxResults: 50
+                    }]
+                }]
+            };
+
             const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${this.apiKeys.google}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    requests: [{
-                        image: {
-                            content: base64Image
-                        },
-                        features: [{
-                            type: 'TEXT_DETECTION',
-                            maxResults: 50
-                        }]
-                    }]
-                })
+                body: JSON.stringify(requestBody)
             });
+
+            console.log('Google Vision: Response status:', response.status);
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Google Vision API HTTP error:', response.status, errorText);
+                throw new Error(`Google Vision API error: ${response.status} - ${errorText}`);
+            }
 
             const result = await response.json();
             const processingTime = performance.now() - startTime;
+            
+            console.log('Google Vision: Response received:', result);
 
-            if (result.responses && result.responses[0].textAnnotations) {
+            // Check for API errors in response
+            if (result.responses && result.responses[0].error) {
+                const apiError = result.responses[0].error;
+                console.error('Google Vision API error in response:', apiError);
+                throw new Error(`Google Vision API: ${apiError.message || 'Unknown error'}`);
+            }
+
+            // Check for text annotations
+            if (result.responses && result.responses[0].textAnnotations && result.responses[0].textAnnotations.length > 0) {
                 const detectedText = result.responses[0].textAnnotations[0].description;
                 const boundingBoxes = result.responses[0].textAnnotations.slice(1);
+                
+                console.log('Google Vision: Detected text:', detectedText);
                 
                 return {
                     text: detectedText,
@@ -55,10 +78,28 @@ class AIVisionProcessor {
                 };
             }
             
-            throw new Error('No text detected');
+            // No text found is not necessarily an error - could be an image with no text
+            console.log('Google Vision: No text detected in image');
+            return {
+                text: '',
+                words: [],
+                processingTime: processingTime,
+                provider: 'google',
+                confidence: 0
+            };
             
         } catch (error) {
             console.error('Google Vision API error:', error);
+            
+            // Provide more specific error messages
+            if (error.message.includes('API key')) {
+                throw new Error('Invalid Google Vision API key. Check your key in AI Config.');
+            } else if (error.message.includes('403')) {
+                throw new Error('Google Vision API access denied. Check API key restrictions.');
+            } else if (error.message.includes('429')) {
+                throw new Error('Google Vision API quota exceeded. Try again later.');
+            }
+            
             throw error;
         }
     }
@@ -177,7 +218,7 @@ class AIVisionProcessor {
                         continue;
                 }
                 
-                // Cache successful result
+                // Cache successful result (even if no URLs found)
                 this.cacheResult(imageHash, result);
                 
                 return result;
@@ -191,6 +232,9 @@ class AIVisionProcessor {
                 }
             }
         }
+        
+        // This should never be reached, but just in case
+        throw new Error('No providers available');
     }
 
     // Utility functions
