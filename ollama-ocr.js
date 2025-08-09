@@ -81,10 +81,24 @@ class OllamaOCRProcessor {
     }
 
     async callOllamaVision(base64Image) {
-        const prompt = `Analyze this image and extract all text, especially URLs and web addresses. 
-        Focus on finding complete URLs like "www.example.com" or "https://example.com". 
-        Return only the text you see, preserving the exact formatting and spelling.
-        If you see any URLs or web addresses, make sure to include them completely.`;
+        const prompt = `You are an expert OCR system. Carefully examine this image and extract ALL visible text with perfect accuracy.
+
+PRIORITY: Look for web URLs, domains, and web addresses including:
+- URLs starting with http:// or https://
+- Domains starting with www.
+- Any text ending with .com, .org, .net, .cz, .io, .ai, etc.
+- Email addresses
+- Domain names with hyphens like "koureni-zabiji.cz"
+
+INSTRUCTIONS:
+1. Scan the entire image systematically
+2. Extract every piece of text you can see, especially URLs
+3. Pay special attention to URLs with Czech domains (.cz)
+4. Include partial URLs and domain names
+5. Preserve exact spelling, including hyphens and dots
+6. Return all text found, with URLs clearly listed
+
+Be extremely thorough. Even if text is small, blurry, or partially visible, try to read it.`;
 
         const response = await fetch(`${this.endpoint}/api/generate`, {
             method: 'POST',
@@ -95,8 +109,11 @@ class OllamaOCRProcessor {
                 images: [base64Image],
                 stream: false,
                 options: {
-                    temperature: 0.1, // Low temperature for accurate text extraction
-                    top_p: 0.9
+                    temperature: 0.0, // Very low temperature for maximum accuracy
+                    top_p: 0.8,
+                    repeat_penalty: 1.0,
+                    num_predict: 512, // Allow longer responses
+                    stop: [] // Don't stop early
                 }
             })
         });
@@ -114,9 +131,73 @@ class OllamaOCRProcessor {
     }
 
     canvasToBase64(canvas) {
-        // Convert canvas to base64 (without data:image/png;base64, prefix)
-        const dataURL = canvas.toDataURL('image/png');
+        // Create high-resolution canvas for Ollama
+        const highResCanvas = this.enhanceImageForOllama(canvas);
+        
+        // Convert to high-quality base64 (without data:image/png;base64, prefix)
+        const dataURL = highResCanvas.toDataURL('image/png', 1.0); // Max quality
         return dataURL.split(',')[1];
+    }
+
+    enhanceImageForOllama(canvas) {
+        // LLaVA works better with larger, high-contrast images
+        const targetSize = 1024; // Ollama vision models prefer 1024x1024 or larger
+        const aspectRatio = canvas.width / canvas.height;
+        
+        let newWidth, newHeight;
+        if (aspectRatio > 1) {
+            newWidth = targetSize;
+            newHeight = Math.round(targetSize / aspectRatio);
+        } else {
+            newHeight = targetSize;
+            newWidth = Math.round(targetSize * aspectRatio);
+        }
+        
+        // Create enhanced canvas
+        const enhancedCanvas = document.createElement('canvas');
+        const ctx = enhancedCanvas.getContext('2d', { willReadFrequently: true });
+        
+        enhancedCanvas.width = newWidth;
+        enhancedCanvas.height = newHeight;
+        
+        // Use high-quality scaling
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        // Draw original image scaled up
+        ctx.drawImage(canvas, 0, 0, newWidth, newHeight);
+        
+        // Apply contrast and sharpening for better text recognition
+        const imageData = ctx.getImageData(0, 0, newWidth, newHeight);
+        const data = imageData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+            // Enhance contrast for text
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Convert to grayscale for better text contrast
+            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            
+            // Apply strong contrast enhancement
+            let enhanced = gray;
+            enhanced = (enhanced - 128) * 1.5 + 128; // Increase contrast
+            enhanced = Math.min(255, Math.max(0, enhanced));
+            
+            // Apply slight sharpening
+            enhanced = enhanced > 120 ? Math.min(255, enhanced + 20) : Math.max(0, enhanced - 20);
+            
+            data[i] = enhanced;     // R
+            data[i + 1] = enhanced; // G  
+            data[i + 2] = enhanced; // B
+            // Alpha unchanged
+        }
+        
+        ctx.putImageData(imageData, 0, 0);
+        
+        console.log(`Ollama: Enhanced image from ${canvas.width}x${canvas.height} to ${newWidth}x${newHeight}`);
+        return enhancedCanvas;
     }
 
     // Helper method to install Ollama models

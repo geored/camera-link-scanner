@@ -307,7 +307,8 @@ class CameraLinkScanner {
     }
     
     preprocessImage() {
-        const scale = 0.6; // Better balance between speed and accuracy
+        // Use higher resolution for AI models, lower for Tesseract
+        const scale = this.currentProvider === 'tesseract' || this.currentProvider === 'enhanced' ? 0.6 : 1.0;
         const width = this.video.videoWidth * scale;
         const height = this.video.videoHeight * scale;
         
@@ -1338,16 +1339,24 @@ class CameraLinkScanner {
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d', { willReadFrequently: true });
         
-        canvas.width = region.width;
-        canvas.height = region.height;
+        // For AI models, use higher resolution by scaling up the cropped region
+        const scale = this.currentProvider === 'ollama' || this.currentProvider === 'azure' || this.currentProvider === 'free-ocr' ? 2.0 : 1.0;
         
-        // Draw the cropped region from video
+        canvas.width = region.width * scale;
+        canvas.height = region.height * scale;
+        
+        // Use high-quality scaling for better text recognition
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        // Draw the cropped region from video with scaling
         ctx.drawImage(
             this.video,
             region.x, region.y, region.width, region.height,
             0, 0, canvas.width, canvas.height
         );
         
+        console.log(`Region cropped: ${region.width}x${region.height} -> ${canvas.width}x${canvas.height} (scale: ${scale})`);
         return canvas;
     }
     
