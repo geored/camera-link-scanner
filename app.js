@@ -555,14 +555,19 @@ class CameraLinkScanner {
         this.overlay.innerHTML = '';
         this.detectedLinks = [];
         
-        // Ultra-precise URL regex patterns
+        console.log('OCR detected text:', text);
+        console.log('OCR confidence:', words ? words.map(w => `${w.text}(${w.confidence})`).join(' ') : 'N/A');
+        
+        // Enhanced URL regex patterns for better detection
         const urlPatterns = [
             // Full HTTP/HTTPS URLs
             /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
-            // www domains
+            // www domains (enhanced)
             /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            // Domain.com patterns
-            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // Domain.extension patterns (enhanced for Czech domains)
+            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // OCR-friendly patterns with spaces
+            /[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z]{2,4}/gi,
             // Social media and common patterns
             /(?:youtube\.com|youtu\.be|twitter\.com|facebook\.com|instagram\.com|linkedin\.com|github\.com|reddit\.com)\/[^\s<>"{}|\\^`\[\]]*/gi,
             // IP addresses with ports
@@ -577,8 +582,14 @@ class CameraLinkScanner {
                 matches.forEach(url => {
                     // Clean up the URL
                     url = url.replace(/[.,;!?]+$/, ''); // Remove trailing punctuation
-                    if (url.length > 4 && this.isValidUrl(url)) {
+                    url = url.replace(/\s+/g, ''); // Remove spaces (common OCR issue)
+                    url = url.toLowerCase(); // Normalize case
+                    
+                    console.log('Regular OCR found potential URL:', url);
+                    
+                    if (url.length > 4 && this.isValidUrlImproved(url)) {
                         foundUrls.add(url);
+                        console.log('Regular OCR valid URL added:', url);
                     }
                 });
             }
@@ -866,10 +877,19 @@ class CameraLinkScanner {
     }
     
     extractUrlsFromText(text) {
+        console.log('Extracting URLs from text:', text);
+        
         const urlPatterns = [
+            // Full HTTP/HTTPS URLs
             /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
+            // www domains (enhanced for Czech domains)
             /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
-            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
+            // Domain.extension patterns (enhanced for Czech .cz domains)
+            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            // Specific patterns for fragmented text (common in OCR)
+            /[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z0-9-]+\s*\.\s*[a-zA-Z]{2,4}/gi,
+            // Pattern for "koureni-zabiji.cz" type domains
+            /[a-zA-Z0-9-]+\s*[\.-]\s*[a-zA-Z0-9-]+\s*[\.-]\s*[a-zA-Z]{2,4}/gi
         ];
 
         const foundUrls = new Set();
@@ -878,17 +898,75 @@ class CameraLinkScanner {
             const matches = text.match(pattern);
             if (matches) {
                 matches.forEach(url => {
-                    url = url.replace(/[.,;!?]+$/, '');
-                    if (this.isValidUrl(url)) {
+                    // Clean up the URL
+                    url = url.replace(/[.,;!?]+$/, ''); // Remove trailing punctuation
+                    url = url.replace(/\s+/g, ''); // Remove spaces (common OCR issue)
+                    url = url.toLowerCase(); // Normalize case
+                    
+                    console.log('Found potential URL:', url);
+                    
+                    if (this.isValidUrlImproved(url)) {
                         foundUrls.add(url);
+                        console.log('Valid URL added:', url);
                     }
                 });
             }
         });
 
+        console.log('Final URLs found:', Array.from(foundUrls));
         return Array.from(foundUrls).map(url => ({ url, confidence: 90 }));
     }
     
+    isValidUrlImproved(url) {
+        const cleanUrl = url.toLowerCase().trim();
+        console.log('Validating URL:', cleanUrl);
+        
+        if (cleanUrl.length < 4) {
+            console.log('URL too short');
+            return false;
+        }
+        
+        // Enhanced TLD validation including Czech domains
+        const validTLDs = /\.(cz|com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2,4})(\.|\/|$)/;
+        if (!validTLDs.test(cleanUrl)) {
+            console.log('Invalid TLD');
+            return false;
+        }
+        
+        // Check for valid domain structure
+        const withoutProtocol = cleanUrl.replace(/^https?:\/\//, '').replace(/^www\./, '');
+        const domainPart = withoutProtocol.split('/')[0];
+        
+        // Must have at least one dot
+        if (!domainPart.includes('.')) {
+            console.log('No dot in domain');
+            return false;
+        }
+        
+        // Split by dots to check domain parts
+        const parts = domainPart.split('.');
+        if (parts.length < 2) {
+            console.log('Less than 2 domain parts');
+            return false;
+        }
+        
+        // Each part should be valid
+        for (const part of parts) {
+            if (part.length === 0) {
+                console.log('Empty domain part');
+                return false;
+            }
+            // Allow hyphens in domain names (like koureni-zabiji)
+            if (!/^[a-zA-Z0-9-]+$/.test(part)) {
+                console.log('Invalid characters in domain part:', part);
+                return false;
+            }
+        }
+        
+        console.log('URL is valid');
+        return true;
+    }
+
     isValidUrl(url) {
         const cleanUrl = url.toLowerCase().trim();
         if (cleanUrl.length < 4) return false;

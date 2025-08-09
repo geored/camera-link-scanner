@@ -81,30 +81,68 @@ class EnhancedOCRProcessor {
     async enhanceImageForOCR(canvas) {
         console.log('Enhanced OCR: Applying image enhancements...');
         
-        // Create enhanced canvas
-        const enhancedCanvas = document.createElement('canvas');
-        const ctx = enhancedCanvas.getContext('2d');
+        return new Promise((resolve) => {
+            // Use setTimeout to prevent blocking
+            setTimeout(() => {
+                try {
+                    // Create enhanced canvas
+                    const enhancedCanvas = document.createElement('canvas');
+                    const ctx = enhancedCanvas.getContext('2d', { willReadFrequently: true });
+                    
+                    // Use smaller scale to reduce processing time
+                    const scale = 1.5;
+                    enhancedCanvas.width = canvas.width * scale;
+                    enhancedCanvas.height = canvas.height * scale;
+                    
+                    // Step 1: Initial upscaling with smoothing
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
+                    ctx.drawImage(canvas, 0, 0, enhancedCanvas.width, enhancedCanvas.height);
+                    
+                    // Step 2: Apply simplified enhancement filters
+                    const imageData = ctx.getImageData(0, 0, enhancedCanvas.width, enhancedCanvas.height);
+                    const enhanced = this.applySimplifiedFilters(imageData);
+                    ctx.putImageData(enhanced, 0, 0);
+                    
+                    resolve(enhancedCanvas);
+                } catch (error) {
+                    console.error('Image enhancement error:', error);
+                    resolve(canvas); // Fallback to original canvas
+                }
+            }, 10);
+        });
+    }
+
+    applySimplifiedFilters(imageData) {
+        const data = imageData.data;
+        const width = imageData.width;
+        const height = imageData.height;
         
-        // Scale up for better recognition
-        const scale = 2;
-        enhancedCanvas.width = canvas.width * scale;
-        enhancedCanvas.height = canvas.height * scale;
+        // Create output image data
+        const enhanced = new ImageData(width, height);
+        const output = enhanced.data;
         
-        // Step 1: Initial upscaling with smoothing
-        ctx.imageSmoothingEnabled = true;
-        ctx.imageSmoothingQuality = 'high';
-        ctx.drawImage(canvas, 0, 0, enhancedCanvas.width, enhancedCanvas.height);
+        for (let i = 0; i < data.length; i += 4) {
+            const r = data[i];
+            const g = data[i + 1];
+            const b = data[i + 2];
+            
+            // Convert to grayscale with better weights
+            let gray = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+            
+            // Simple contrast enhancement
+            gray = Math.min(255, Math.max(0, (gray - 128) * 1.5 + 128));
+            
+            // Simple threshold
+            gray = gray > 120 ? 255 : gray < 60 ? 0 : gray;
+            
+            output[i] = gray;     // R
+            output[i + 1] = gray; // G
+            output[i + 2] = gray; // B
+            output[i + 3] = 255;  // A
+        }
         
-        // Step 2: Apply multiple enhancement filters
-        const imageData = ctx.getImageData(0, 0, enhancedCanvas.width, enhancedCanvas.height);
-        const enhanced = this.applyEnhancementFilters(imageData);
-        ctx.putImageData(enhanced, 0, 0);
-        
-        // Step 3: Apply sharpening
-        const sharpened = this.applySharpeningFilter(ctx, enhancedCanvas.width, enhancedCanvas.height);
-        ctx.putImageData(sharpened, 0, 0);
-        
-        return enhancedCanvas;
+        return enhanced;
     }
 
     applyEnhancementFilters(imageData) {
