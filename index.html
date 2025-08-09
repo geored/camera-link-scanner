@@ -175,6 +175,8 @@
             pointer-events: all;
             z-index: 60;
             display: none;
+            background: rgba(0, 255, 0, 0.05);
+            cursor: crosshair;
         }
 
         .selection-box {
@@ -187,16 +189,18 @@
 
         .selection-instructions {
             position: absolute;
-            top: 50%;
+            top: 20px;
             left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.8);
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.9);
             color: #00ff00;
-            padding: 15px 20px;
-            border-radius: 8px;
+            padding: 10px 15px;
+            border-radius: 6px;
             text-align: center;
-            font-size: 14px;
+            font-size: 12px;
             border: 1px solid #00ff00;
+            pointer-events: none;
+            z-index: 70;
         }
 
         .region-controls {
@@ -490,7 +494,7 @@
         <div id="selectionOverlay" class="selection-overlay">
             <div id="selectionInstructions" class="selection-instructions">
                 📱 Drag to select text region for OCR<br>
-                <small>Tap outside to cancel</small>
+                <small>Click Cancel button to exit</small>
             </div>
             <div id="selectionBox" class="selection-box"></div>
         </div>

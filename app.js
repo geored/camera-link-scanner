@@ -1094,19 +1094,22 @@ class CameraLinkScanner {
         this.selectionOverlay.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
         this.selectionOverlay.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
         
-        // Cancel selection when clicking outside
-        this.selectionOverlay.addEventListener('click', (e) => {
-            if (e.target === this.selectionOverlay) {
-                this.cancelRegionSelection();
-            }
-        });
+        // Don't cancel on overlay clicks - only use Cancel button
     }
     
     startRegionSelection() {
         this.selectionOverlay.style.display = 'block';
         this.selectRegionBtn.style.display = 'none';
         this.cancelRegionBtn.style.display = 'block';
-        this.updateStatus('Select text region by dragging', 'loading');
+        this.updateStatus('Drag anywhere on the video to select a region', 'loading');
+        
+        // Hide instructions after 3 seconds
+        setTimeout(() => {
+            const instructions = document.getElementById('selectionInstructions');
+            if (instructions) {
+                instructions.style.opacity = '0.5';
+            }
+        }, 3000);
     }
     
     cancelRegionSelection() {
@@ -1117,6 +1120,13 @@ class CameraLinkScanner {
         this.isSelecting = false;
         this.startPoint = null;
         this.selectedRegion = null;
+        
+        // Reset instructions opacity
+        const instructions = document.getElementById('selectionInstructions');
+        if (instructions) {
+            instructions.style.opacity = '1';
+        }
+        
         this.updateStatus('Region selection cancelled', 'ready');
     }
     
