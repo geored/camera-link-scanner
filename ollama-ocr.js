@@ -32,18 +32,24 @@ class OllamaOCRProcessor {
                 const data = await response.json();
                 this.isAvailable = data.models && data.models.some(m => m.name.includes('llava'));
                 console.log('Ollama availability:', this.isAvailable);
+                console.log('Available models:', data.models?.map(m => m.name));
                 return this.isAvailable;
             }
         } catch (error) {
-            console.log('Ollama not available:', error.message);
+            console.log('Ollama CORS/connection error:', error.message);
             this.isAvailable = false;
+            
+            // Provide helpful CORS troubleshooting
+            if (error.message.includes('fetch')) {
+                console.error('CORS Issue: Restart Ollama with: OLLAMA_ORIGINS=https://geored.github.io ollama serve');
+            }
         }
         return false;
     }
 
     async processImage(canvas) {
         if (!await this.checkAvailability()) {
-            throw new Error('Ollama not available. Please install Ollama and pull a vision model like "ollama pull llava:7b"');
+            throw new Error('Ollama CORS error. Restart Ollama with: OLLAMA_ORIGINS=https://geored.github.io ollama serve\nThen ensure you have: ollama pull llava:7b');
         }
 
         const startTime = performance.now();
