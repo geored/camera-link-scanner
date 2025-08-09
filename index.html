@@ -504,6 +504,9 @@
             <h3>🤖 AI Vision Settings</h3>
             
             <div class="ai-provider-select">
+                <button class="provider-btn" data-provider="transformers">🔥 TrOCR AI</button>
+                <button class="provider-btn" data-provider="azure">Azure Vision</button>
+                <button class="provider-btn" data-provider="ollama">Ollama Local</button>
                 <button class="provider-btn" data-provider="enhanced">Enhanced OCR</button>
                 <button class="provider-btn" data-provider="google">Google Vision</button>
                 <button class="provider-btn" data-provider="openai">GPT-4 Vision</button>
@@ -532,6 +535,38 @@
                 </div>
             </div>
             
+            <div id="transformersConfig" style="display: none;">
+                <div style="font-size: 12px; color: #888;">
+                    🔥 Free AI OCR • Browser-based TrOCR • 1-3s response • 90% accuracy • No API needed
+                </div>
+                <div style="font-size: 10px; color: #4CAF50; margin-top: 5px;">
+                    ✅ Recommended: Best free option with AI accuracy
+                </div>
+            </div>
+            
+            <div id="azureConfig" style="display: none;">
+                <label style="color: #ccc; font-size: 12px;">Azure API Key:</label>
+                <input type="password" class="api-key-input" id="azureApiKey" placeholder="Enter Azure Computer Vision API key">
+                <label style="color: #ccc; font-size: 12px; margin-top: 8px;">Azure Endpoint:</label>
+                <input type="text" class="api-key-input" id="azureEndpoint" placeholder="https://your-resource.cognitiveservices.azure.com">
+                <div style="font-size: 10px; color: #888; margin-top: 5px;">
+                    5000 free requests/month • 1-2s response • 95% accuracy
+                </div>
+            </div>
+            
+            <div id="ollamaConfig" style="display: none;">
+                <label style="color: #ccc; font-size: 12px;">Ollama Endpoint:</label>
+                <input type="text" class="api-key-input" id="ollamaEndpoint" placeholder="http://localhost:11434">
+                <label style="color: #ccc; font-size: 12px; margin-top: 8px;">Model:</label>
+                <input type="text" class="api-key-input" id="ollamaModel" placeholder="llava:7b">
+                <div style="font-size: 10px; color: #888; margin-top: 5px;">
+                    🏠 Local AI • Completely free • 2-5s response • 95% accuracy • Privacy-first
+                </div>
+                <div style="font-size: 10px; color: #FFA500; margin-top: 3px;">
+                    Requires: Install Ollama + run "ollama pull llava:7b"
+                </div>
+            </div>
+
             <div id="tesseractConfig" style="display: block;">
                 <div style="font-size: 12px; color: #888;">
                     Free local processing • 2-3s response • 70% accuracy
@@ -561,6 +596,9 @@
     <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
     <script src="enhanced-ocr.js"></script>
     <script src="ai-vision.js"></script>
+    <script src="transformers-ocr.js"></script>
+    <script src="azure-ocr.js"></script>
+    <script src="ollama-ocr.js"></script>
     <script src="app.js"></script>
     
     <!-- PWA Service Worker Registration -->

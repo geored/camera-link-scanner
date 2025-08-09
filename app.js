@@ -19,6 +19,9 @@ class CameraLinkScanner {
         this.worker = null;
         this.aiVision = new AIVisionProcessor();
         this.enhancedOCR = new EnhancedOCRProcessor();
+        this.transformersOCR = new TransformersOCRProcessor();
+        this.azureOCR = new AzureOCRProcessor();
+        this.ollamaOCR = new OllamaOCRProcessor();
         this.currentProvider = 'tesseract';
         this.detectedLinks = []; // Current scan links
         this.linkHistory = []; // Persistent link memory
@@ -45,6 +48,8 @@ class CameraLinkScanner {
             // Initialize AI vision system
             console.log('Initializing AI vision...');
             this.aiVision.loadApiKeys();
+            this.azureOCR.loadApiKey();
+            this.ollamaOCR.loadConfig();
             this.currentProvider = localStorage.getItem('ai_preferred_provider') || 'tesseract';
             
             // Setup event listeners first
@@ -214,13 +219,48 @@ class CameraLinkScanner {
                 // Use Enhanced OCR processing
                 scanResult = await this.enhancedOCR.processImage(processedImage.canvas);
                 if (scanResult) {
-                    // Convert Enhanced OCR result to standard format
                     const urls = this.extractUrlsFromText(scanResult.text);
                     this.processAIResults({
                         urls: urls,
                         processingTime: scanResult.processingTime,
                         confidence: scanResult.confidence,
                         provider: 'enhanced'
+                    });
+                }
+            } else if (this.currentProvider === 'transformers') {
+                // Use Transformers.js TrOCR
+                scanResult = await this.transformersOCR.processImage(processedImage.canvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'transformers'
+                    });
+                }
+            } else if (this.currentProvider === 'azure') {
+                // Use Azure Computer Vision
+                scanResult = await this.azureOCR.processImage(processedImage.canvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'azure'
+                    });
+                }
+            } else if (this.currentProvider === 'ollama') {
+                // Use Ollama local vision model
+                scanResult = await this.ollamaOCR.processImage(processedImage.canvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'ollama'
                     });
                 }
             } else {
@@ -472,17 +512,33 @@ class CameraLinkScanner {
                     const openaiConfig = document.getElementById('openaiConfig');
                     const enhancedConfig = document.getElementById('enhancedConfig');
                     const tesseractConfig = document.getElementById('tesseractConfig');
+                    const transformersConfig = document.getElementById('transformersConfig');
+                    const azureConfig = document.getElementById('azureConfig');
+                    const ollamaConfig = document.getElementById('ollamaConfig');
                     
-                    if (googleConfig) googleConfig.style.display = provider === 'google' ? 'block' : 'none';
-                    if (openaiConfig) openaiConfig.style.display = provider === 'openai' ? 'block' : 'none';
-                    if (enhancedConfig) enhancedConfig.style.display = provider === 'enhanced' ? 'block' : 'none';
-                    if (tesseractConfig) tesseractConfig.style.display = provider === 'tesseract' ? 'block' : 'none';
+                    // Hide all configs first
+                    [googleConfig, openaiConfig, enhancedConfig, tesseractConfig, transformersConfig, azureConfig, ollamaConfig].forEach(config => {
+                        if (config) config.style.display = 'none';
+                    });
+                    
+                    // Show selected config
+                    if (googleConfig && provider === 'google') googleConfig.style.display = 'block';
+                    if (openaiConfig && provider === 'openai') openaiConfig.style.display = 'block';
+                    if (enhancedConfig && provider === 'enhanced') enhancedConfig.style.display = 'block';
+                    if (tesseractConfig && provider === 'tesseract') tesseractConfig.style.display = 'block';
+                    if (transformersConfig && provider === 'transformers') transformersConfig.style.display = 'block';
+                    if (azureConfig && provider === 'azure') azureConfig.style.display = 'block';
+                    if (ollamaConfig && provider === 'ollama') ollamaConfig.style.display = 'block';
                 });
             });
             
             // API key inputs
             const googleKeyInput = document.getElementById('googleApiKey');
             const openaiKeyInput = document.getElementById('openaiApiKey');
+            const azureKeyInput = document.getElementById('azureApiKey');
+            const azureEndpointInput = document.getElementById('azureEndpoint');
+            const ollamaEndpointInput = document.getElementById('ollamaEndpoint');
+            const ollamaModelInput = document.getElementById('ollamaModel');
             
             if (googleKeyInput) {
                 googleKeyInput.addEventListener('input', (e) => {
@@ -496,6 +552,38 @@ class CameraLinkScanner {
                     this.aiVision.setApiKey('openai', e.target.value);
                 });
                 openaiKeyInput.value = localStorage.getItem('ai_openai_key') || '';
+            }
+            
+            if (azureKeyInput) {
+                azureKeyInput.addEventListener('input', (e) => {
+                    const endpoint = azureEndpointInput ? azureEndpointInput.value : null;
+                    this.azureOCR.setApiKey(e.target.value, endpoint);
+                });
+                azureKeyInput.value = localStorage.getItem('azure_api_key') || '';
+            }
+            
+            if (azureEndpointInput) {
+                azureEndpointInput.addEventListener('input', (e) => {
+                    const apiKey = azureKeyInput ? azureKeyInput.value : '';
+                    this.azureOCR.setApiKey(apiKey, e.target.value);
+                });
+                azureEndpointInput.value = localStorage.getItem('azure_endpoint') || '';
+            }
+            
+            if (ollamaEndpointInput) {
+                ollamaEndpointInput.addEventListener('input', (e) => {
+                    const model = ollamaModelInput ? ollamaModelInput.value : 'llava:7b';
+                    this.ollamaOCR.setConfig(e.target.value, model);
+                });
+                ollamaEndpointInput.value = localStorage.getItem('ollama_endpoint') || 'http://localhost:11434';
+            }
+            
+            if (ollamaModelInput) {
+                ollamaModelInput.addEventListener('input', (e) => {
+                    const endpoint = ollamaEndpointInput ? ollamaEndpointInput.value : 'http://localhost:11434';
+                    this.ollamaOCR.setConfig(endpoint, e.target.value);
+                });
+                ollamaModelInput.value = localStorage.getItem('ollama_model') || 'llava:7b';
             }
             
             // Set initial provider UI
@@ -516,15 +604,14 @@ class CameraLinkScanner {
         });
         
         // Show correct config section
-        const googleConfig = document.getElementById('googleConfig');
-        const openaiConfig = document.getElementById('openaiConfig');
-        const enhancedConfig = document.getElementById('enhancedConfig');
-        const tesseractConfig = document.getElementById('tesseractConfig');
-        
-        if (googleConfig) googleConfig.style.display = this.currentProvider === 'google' ? 'block' : 'none';
-        if (openaiConfig) openaiConfig.style.display = this.currentProvider === 'openai' ? 'block' : 'none';
-        if (enhancedConfig) enhancedConfig.style.display = this.currentProvider === 'enhanced' ? 'block' : 'none';
-        if (tesseractConfig) tesseractConfig.style.display = this.currentProvider === 'tesseract' ? 'block' : 'none';
+        const configs = ['googleConfig', 'openaiConfig', 'enhancedConfig', 'tesseractConfig', 'transformersConfig', 'azureConfig', 'ollamaConfig'];
+        configs.forEach(configId => {
+            const config = document.getElementById(configId);
+            if (config) {
+                const provider = configId.replace('Config', '');
+                config.style.display = this.currentProvider === provider ? 'block' : 'none';
+            }
+        });
     }
     
     switchProvider(provider) {
@@ -1173,6 +1260,39 @@ class CameraLinkScanner {
                         processingTime: scanResult.processingTime,
                         confidence: scanResult.confidence,
                         provider: 'enhanced'
+                    });
+                }
+            } else if (this.currentProvider === 'transformers') {
+                scanResult = await this.transformersOCR.processImage(croppedCanvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'transformers'
+                    });
+                }
+            } else if (this.currentProvider === 'azure') {
+                scanResult = await this.azureOCR.processImage(croppedCanvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'azure'
+                    });
+                }
+            } else if (this.currentProvider === 'ollama') {
+                scanResult = await this.ollamaOCR.processImage(croppedCanvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'ollama'
                     });
                 }
             } else {
