@@ -8,6 +8,10 @@ class CameraLinkScanner {
         this.linksList = document.getElementById('linksList');
         this.linksPanel = document.getElementById('linksPanel');
         this.performanceInfo = document.getElementById('performanceInfo');
+        this.selectionOverlay = document.getElementById('selectionOverlay');
+        this.selectionBox = document.getElementById('selectionBox');
+        this.selectRegionBtn = document.getElementById('selectRegionBtn');
+        this.cancelRegionBtn = document.getElementById('cancelRegionBtn');
         
         this.currentStream = null;
         this.facingMode = 'environment'; // Start with back camera
@@ -85,9 +89,9 @@ class CameraLinkScanner {
             textord_min_linesize: '2.5'
         });
         
-        // Initialize processing canvas
+        // Initialize processing canvas with performance optimization
         this.processingCanvas = document.createElement('canvas');
-        this.processingCtx = this.processingCanvas.getContext('2d');
+        this.processingCtx = this.processingCanvas.getContext('2d', { willReadFrequently: true });
     }
     
     async startCamera() {
@@ -163,6 +167,10 @@ class CameraLinkScanner {
             aiConfig.classList.toggle('show');
         });
         
+        // Region selection event listeners
+        this.selectRegionBtn.addEventListener('click', () => this.startRegionSelection());
+        this.cancelRegionBtn.addEventListener('click', () => this.cancelRegionSelection());
+        
         // Smart auto-scan with region detection
         setInterval(() => {
             const now = Date.now();
@@ -173,6 +181,9 @@ class CameraLinkScanner {
         
         // Add motion detection for faster scanning
         this.setupMotionDetection();
+        
+        // Setup region selection interaction
+        this.setupRegionSelection();
     }
     
     async toggleCamera() {
@@ -889,6 +900,312 @@ class CameraLinkScanner {
     updateStatus(message, type = '') {
         this.status.textContent = message;
         this.status.className = `status ${type}`;
+    }
+    
+    // Region Selection Methods
+    setupRegionSelection() {
+        this.isSelecting = false;
+        this.startPoint = null;
+        this.selectedRegion = null;
+        
+        // Touch and mouse events for selection
+        this.selectionOverlay.addEventListener('mousedown', this.handleSelectionStart.bind(this));
+        this.selectionOverlay.addEventListener('mousemove', this.handleSelectionMove.bind(this));
+        this.selectionOverlay.addEventListener('mouseup', this.handleSelectionEnd.bind(this));
+        
+        // Touch events for mobile
+        this.selectionOverlay.addEventListener('touchstart', this.handleTouchStart.bind(this), { passive: false });
+        this.selectionOverlay.addEventListener('touchmove', this.handleTouchMove.bind(this), { passive: false });
+        this.selectionOverlay.addEventListener('touchend', this.handleTouchEnd.bind(this), { passive: false });
+        
+        // Cancel selection when clicking outside
+        this.selectionOverlay.addEventListener('click', (e) => {
+            if (e.target === this.selectionOverlay) {
+                this.cancelRegionSelection();
+            }
+        });
+    }
+    
+    startRegionSelection() {
+        this.selectionOverlay.style.display = 'block';
+        this.selectRegionBtn.style.display = 'none';
+        this.cancelRegionBtn.style.display = 'block';
+        this.updateStatus('Select text region by dragging', 'loading');
+    }
+    
+    cancelRegionSelection() {
+        this.selectionOverlay.style.display = 'none';
+        this.selectionBox.style.display = 'none';
+        this.selectRegionBtn.style.display = 'block';
+        this.cancelRegionBtn.style.display = 'none';
+        this.isSelecting = false;
+        this.startPoint = null;
+        this.selectedRegion = null;
+        this.updateStatus('Region selection cancelled', 'ready');
+    }
+    
+    handleSelectionStart(e) {
+        e.preventDefault();
+        this.isSelecting = true;
+        const rect = this.selectionOverlay.getBoundingClientRect();
+        this.startPoint = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        this.selectionBox.style.display = 'block';
+        this.selectionBox.style.left = this.startPoint.x + 'px';
+        this.selectionBox.style.top = this.startPoint.y + 'px';
+        this.selectionBox.style.width = '0px';
+        this.selectionBox.style.height = '0px';
+    }
+    
+    handleSelectionMove(e) {
+        if (!this.isSelecting || !this.startPoint) return;
+        e.preventDefault();
+        
+        const rect = this.selectionOverlay.getBoundingClientRect();
+        const currentPoint = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        
+        this.updateSelectionBox(currentPoint);
+    }
+    
+    handleSelectionEnd(e) {
+        if (!this.isSelecting || !this.startPoint) return;
+        e.preventDefault();
+        
+        const rect = this.selectionOverlay.getBoundingClientRect();
+        const endPoint = {
+            x: e.clientX - rect.left,
+            y: e.clientY - rect.top
+        };
+        
+        this.completeSelection(endPoint);
+    }
+    
+    handleTouchStart(e) {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousedown', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        this.handleSelectionStart(mouseEvent);
+    }
+    
+    handleTouchMove(e) {
+        e.preventDefault();
+        if (!this.isSelecting) return;
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousemove', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        this.handleSelectionMove(mouseEvent);
+    }
+    
+    handleTouchEnd(e) {
+        e.preventDefault();
+        if (!this.isSelecting) return;
+        const touch = e.changedTouches[0];
+        const mouseEvent = new MouseEvent('mouseup', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        this.handleSelectionEnd(mouseEvent);
+    }
+    
+    updateSelectionBox(currentPoint) {
+        const left = Math.min(this.startPoint.x, currentPoint.x);
+        const top = Math.min(this.startPoint.y, currentPoint.y);
+        const width = Math.abs(currentPoint.x - this.startPoint.x);
+        const height = Math.abs(currentPoint.y - this.startPoint.y);
+        
+        this.selectionBox.style.left = left + 'px';
+        this.selectionBox.style.top = top + 'px';
+        this.selectionBox.style.width = width + 'px';
+        this.selectionBox.style.height = height + 'px';
+    }
+    
+    completeSelection(endPoint) {
+        const videoRect = this.video.getBoundingClientRect();
+        const overlayRect = this.selectionOverlay.getBoundingClientRect();
+        
+        // Calculate selection bounds relative to video
+        const left = Math.min(this.startPoint.x, endPoint.x);
+        const top = Math.min(this.startPoint.y, endPoint.y);
+        const width = Math.abs(endPoint.x - this.startPoint.x);
+        const height = Math.abs(endPoint.y - this.startPoint.y);
+        
+        // Ensure minimum selection size
+        if (width < 50 || height < 20) {
+            this.updateStatus('Selection too small, try again', 'error');
+            this.selectionBox.style.display = 'none';
+            this.isSelecting = false;
+            return;
+        }
+        
+        // Convert overlay coordinates to video coordinates
+        const scaleX = this.video.videoWidth / videoRect.width;
+        const scaleY = this.video.videoHeight / videoRect.height;
+        
+        this.selectedRegion = {
+            x: left * scaleX,
+            y: top * scaleY,
+            width: width * scaleX,
+            height: height * scaleY
+        };
+        
+        this.isSelecting = false;
+        this.updateStatus('Region selected - scanning...', 'loading');
+        
+        // Hide selection UI and scan the selected region
+        setTimeout(() => {
+            this.cancelRegionSelection();
+            this.scanSelectedRegion();
+        }, 500);
+    }
+    
+    async scanSelectedRegion() {
+        if (!this.selectedRegion || this.isScanning) return;
+        
+        this.isScanning = true;
+        this.isProcessing = true;
+        this.lastScanTime = Date.now();
+        this.scanBtn.disabled = true;
+        
+        try {
+            // Crop the image to selected region
+            const croppedCanvas = this.cropVideoRegion(this.selectedRegion);
+            
+            let scanResult;
+            if (this.currentProvider === 'tesseract') {
+                scanResult = await this.performRegionOCR(croppedCanvas);
+                if (scanResult) {
+                    this.detectAndDisplayLinksFromRegion(scanResult.text, this.selectedRegion);
+                }
+            } else if (this.currentProvider === 'enhanced') {
+                scanResult = await this.enhancedOCR.processImage(croppedCanvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'enhanced'
+                    });
+                }
+            } else {
+                scanResult = await this.aiVision.processImage(croppedCanvas, this.currentProvider);
+                if (scanResult && scanResult.urls) {
+                    this.processAIResults(scanResult);
+                }
+            }
+            
+        } catch (error) {
+            console.error('Region scan error:', error);
+            this.updateStatus(`Region scan failed: ${error.message}`, 'error');
+        } finally {
+            this.isScanning = false;
+            this.isProcessing = false;
+            this.scanBtn.disabled = false;
+            this.selectedRegion = null;
+        }
+    }
+    
+    cropVideoRegion(region) {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d', { willReadFrequently: true });
+        
+        canvas.width = region.width;
+        canvas.height = region.height;
+        
+        // Draw the cropped region from video
+        ctx.drawImage(
+            this.video,
+            region.x, region.y, region.width, region.height,
+            0, 0, canvas.width, canvas.height
+        );
+        
+        return canvas;
+    }
+    
+    async performRegionOCR(canvas) {
+        try {
+            const startTime = performance.now();
+            
+            const { data } = await this.worker.recognize(canvas);
+            const processingTime = performance.now() - startTime;
+            
+            console.log(`Region OCR processed in ${processingTime.toFixed(0)}ms`);
+            this.updatePerformanceInfo(processingTime, data.confidence);
+            
+            return {
+                text: data.text,
+                confidence: data.confidence,
+                processingTime: processingTime
+            };
+        } catch (error) {
+            console.error('Region OCR processing error:', error);
+            return null;
+        }
+    }
+    
+    detectAndDisplayLinksFromRegion(text, region) {
+        this.overlay.innerHTML = '';
+        this.detectedLinks = [];
+        
+        const urlPatterns = [
+            /https?:\/\/[^\s<>"{}|\\^`\[\]]+/gi,
+            /www\.[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi,
+            /[a-zA-Z0-9][a-zA-Z0-9.-]*\.(?:com|org|net|edu|gov|mil|int|co|io|ai|app|dev|tech|info|biz|name|museum|[a-z]{2})(?:\/[^\s<>"{}|\\^`\[\]]*)?/gi
+        ];
+        
+        const foundUrls = new Set();
+        
+        urlPatterns.forEach(pattern => {
+            const matches = text.match(pattern);
+            if (matches) {
+                matches.forEach(url => {
+                    url = url.replace(/[.,;!?]+$/, '');
+                    if (url.length > 4 && this.isValidUrl(url)) {
+                        foundUrls.add(url);
+                    }
+                });
+            }
+        });
+        
+        if (foundUrls.size === 0) {
+            this.updateStatus('No links found in selected region', 'ready');
+            return;
+        }
+        
+        const videoRect = this.video.getBoundingClientRect();
+        const scaleX = videoRect.width / this.video.videoWidth;
+        const scaleY = videoRect.height / this.video.videoHeight;
+        
+        foundUrls.forEach((url) => {
+            this.detectedLinks.push(url);
+            this.addToHistory(url);
+            
+            // Create marker for the selected region
+            const marker = this.createPreciseMarker(
+                region.x * scaleX,
+                region.y * scaleY,
+                region.width * scaleX,
+                region.height * scaleY
+            );
+            this.overlay.appendChild(marker);
+        });
+        
+        this.updateLinksDisplay();
+        
+        if (this.linkHistory.length > 0) {
+            this.updateStatus(`Found ${this.detectedLinks.length} link(s) in region`, 'ready');
+            this.linksPanel.classList.add('show');
+        }
     }
 }
 
