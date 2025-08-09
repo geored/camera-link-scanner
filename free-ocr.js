@@ -38,6 +38,8 @@ class FreeOCRProcessor {
     }
 
     async callOCRSpaceAPI(imageBlob) {
+        console.log('Free OCR: Calling OCR.space API...');
+        
         const formData = new FormData();
         formData.append('file', imageBlob, 'image.png');
         formData.append('apikey', this.apiKey);
@@ -45,23 +47,39 @@ class FreeOCRProcessor {
         formData.append('isOverlayRequired', 'false');
         formData.append('iscreatesearchablepdf', 'false');
         formData.append('issearchablepdfhidetextlayer', 'false');
+        formData.append('OCREngine', '2'); // Use OCR Engine 2 for better accuracy
+        formData.append('scale', 'true'); // Auto-scale image
+        formData.append('isTable', 'false'); // Not a table
 
-        const response = await fetch(this.apiUrl, {
-            method: 'POST',
-            body: formData
-        });
+        try {
+            const response = await fetch(this.apiUrl, {
+                method: 'POST',
+                body: formData
+            });
 
-        if (!response.ok) {
-            throw new Error(`OCR.space API error: ${response.status}`);
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`OCR.space API error ${response.status}: ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('Free OCR: API response:', data);
+            
+            if (data.IsErroredOnProcessing) {
+                const errorMsg = data.ErrorMessage?.join(', ') || 'Unknown error';
+                throw new Error(`OCR processing error: ${errorMsg}`);
+            }
+
+            if (!data.ParsedResults || data.ParsedResults.length === 0) {
+                console.warn('Free OCR: No text detected in image');
+                return { ParsedResults: [{ ParsedText: '' }] };
+            }
+
+            return data;
+        } catch (error) {
+            console.error('Free OCR: API call failed:', error);
+            throw error;
         }
-
-        const data = await response.json();
-        
-        if (data.IsErroredOnProcessing) {
-            throw new Error(`OCR processing error: ${data.ErrorMessage?.join(', ') || 'Unknown error'}`);
-        }
-
-        return data;
     }
 
     extractTextFromResponse(result) {

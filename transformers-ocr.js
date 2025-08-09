@@ -44,9 +44,20 @@ class TransformersOCRProcessor {
             
             // Load TrOCR model for text recognition
             console.log('Loading TrOCR model...');
+            
+            // Configure to use Hugging Face CDN instead of local paths
+            if (transformers.env) {
+                transformers.env.allowRemoteModels = true;
+                transformers.env.allowLocalModels = false;
+                transformers.env.remoteURL = 'https://huggingface.co/';
+                transformers.env.remotePathTemplate = 'https://huggingface.co/{model}/resolve/main/';
+            }
+            
             this.processor = await transformers.pipeline('image-to-text', 'Xenova/trocr-base-printed', {
                 revision: 'main',
-                quantized: true // Use quantized version for better performance
+                quantized: true, // Use quantized version for better performance
+                cache_dir: null, // Don't cache locally
+                local_files_only: false // Always download from remote
             });
             
             this.isLoaded = true;
@@ -56,7 +67,7 @@ class TransformersOCRProcessor {
         } catch (error) {
             console.error('Failed to load Transformers.js model:', error);
             this.isLoading = false;
-            throw new Error(`TrOCR unavailable: ${error.message}. Try Azure or Ollama instead.`);
+            throw new Error(`TrOCR unavailable - models are large (300MB+) and may timeout. Try ⚡ Free OCR for immediate results, or Azure/Ollama for best accuracy.`);
         }
     }
 
