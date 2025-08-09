@@ -13,11 +13,38 @@ class TransformersOCRProcessor {
         console.log('Loading Transformers.js TrOCR model...');
         
         try {
-            // Import Transformers.js
-            const { pipeline } = await import('https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.2/dist/transformers.min.js');
+            console.log('Attempting to load Transformers.js...');
+            
+            // Try multiple CDN sources for better reliability
+            const cdnSources = [
+                'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1/dist/transformers.min.js',
+                'https://unpkg.com/@xenova/transformers@2.17.1/dist/transformers.min.js',
+                'https://cdn.skypack.dev/@xenova/transformers@2.17.1'
+            ];
+            
+            let transformers = null;
+            let loadError = null;
+            
+            for (const cdnUrl of cdnSources) {
+                try {
+                    console.log('Trying CDN:', cdnUrl);
+                    transformers = await import(cdnUrl);
+                    console.log('Successfully loaded from:', cdnUrl);
+                    break;
+                } catch (err) {
+                    console.warn('Failed to load from:', cdnUrl, err);
+                    loadError = err;
+                    continue;
+                }
+            }
+            
+            if (!transformers) {
+                throw new Error(`Failed to load Transformers.js from all CDNs. Last error: ${loadError?.message}`);
+            }
             
             // Load TrOCR model for text recognition
-            this.processor = await pipeline('image-to-text', 'Xenova/trocr-base-printed', {
+            console.log('Loading TrOCR model...');
+            this.processor = await transformers.pipeline('image-to-text', 'Xenova/trocr-base-printed', {
                 revision: 'main',
                 quantized: true // Use quantized version for better performance
             });
@@ -29,7 +56,7 @@ class TransformersOCRProcessor {
         } catch (error) {
             console.error('Failed to load Transformers.js model:', error);
             this.isLoading = false;
-            throw error;
+            throw new Error(`TrOCR unavailable: ${error.message}. Try Azure or Ollama instead.`);
         }
     }
 

@@ -22,6 +22,7 @@ class CameraLinkScanner {
         this.transformersOCR = new TransformersOCRProcessor();
         this.azureOCR = new AzureOCRProcessor();
         this.ollamaOCR = new OllamaOCRProcessor();
+        this.freeOCR = new FreeOCRProcessor();
         this.currentProvider = 'tesseract';
         this.detectedLinks = []; // Current scan links
         this.linkHistory = []; // Persistent link memory
@@ -261,6 +262,18 @@ class CameraLinkScanner {
                         processingTime: scanResult.processingTime,
                         confidence: scanResult.confidence,
                         provider: 'ollama'
+                    });
+                }
+            } else if (this.currentProvider === 'free-ocr') {
+                // Use Free OCR service
+                scanResult = await this.freeOCR.processImage(processedImage.canvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'free-ocr'
                     });
                 }
             } else {
@@ -515,9 +528,10 @@ class CameraLinkScanner {
                     const transformersConfig = document.getElementById('transformersConfig');
                     const azureConfig = document.getElementById('azureConfig');
                     const ollamaConfig = document.getElementById('ollamaConfig');
+                    const freeOcrConfig = document.getElementById('freeOcrConfig');
                     
                     // Hide all configs first
-                    [googleConfig, openaiConfig, enhancedConfig, tesseractConfig, transformersConfig, azureConfig, ollamaConfig].forEach(config => {
+                    [googleConfig, openaiConfig, enhancedConfig, tesseractConfig, transformersConfig, azureConfig, ollamaConfig, freeOcrConfig].forEach(config => {
                         if (config) config.style.display = 'none';
                     });
                     
@@ -529,6 +543,7 @@ class CameraLinkScanner {
                     if (transformersConfig && provider === 'transformers') transformersConfig.style.display = 'block';
                     if (azureConfig && provider === 'azure') azureConfig.style.display = 'block';
                     if (ollamaConfig && provider === 'ollama') ollamaConfig.style.display = 'block';
+                    if (freeOcrConfig && provider === 'free-ocr') freeOcrConfig.style.display = 'block';
                 });
             });
             
@@ -604,11 +619,11 @@ class CameraLinkScanner {
         });
         
         // Show correct config section
-        const configs = ['googleConfig', 'openaiConfig', 'enhancedConfig', 'tesseractConfig', 'transformersConfig', 'azureConfig', 'ollamaConfig'];
+        const configs = ['googleConfig', 'openaiConfig', 'enhancedConfig', 'tesseractConfig', 'transformersConfig', 'azureConfig', 'ollamaConfig', 'freeOcrConfig'];
         configs.forEach(configId => {
             const config = document.getElementById(configId);
             if (config) {
-                const provider = configId.replace('Config', '');
+                const provider = configId.replace('Config', '').replace('Ocr', '-ocr');
                 config.style.display = this.currentProvider === provider ? 'block' : 'none';
             }
         });
@@ -1293,6 +1308,17 @@ class CameraLinkScanner {
                         processingTime: scanResult.processingTime,
                         confidence: scanResult.confidence,
                         provider: 'ollama'
+                    });
+                }
+            } else if (this.currentProvider === 'free-ocr') {
+                scanResult = await this.freeOCR.processImage(croppedCanvas);
+                if (scanResult) {
+                    const urls = this.extractUrlsFromText(scanResult.text);
+                    this.processAIResults({
+                        urls: urls,
+                        processingTime: scanResult.processingTime,
+                        confidence: scanResult.confidence,
+                        provider: 'free-ocr'
                     });
                 }
             } else {

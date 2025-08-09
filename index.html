@@ -504,6 +504,7 @@
             <h3>🤖 AI Vision Settings</h3>
             
             <div class="ai-provider-select">
+                <button class="provider-btn" data-provider="free-ocr">⚡ Free OCR</button>
                 <button class="provider-btn" data-provider="transformers">🔥 TrOCR AI</button>
                 <button class="provider-btn" data-provider="azure">Azure Vision</button>
                 <button class="provider-btn" data-provider="ollama">Ollama Local</button>
@@ -535,12 +536,21 @@
                 </div>
             </div>
             
+            <div id="freeOcrConfig" style="display: none;">
+                <div style="font-size: 12px; color: #888;">
+                    ⚡ Free Cloud OCR • OCR.space API • 1-2s response • 85% accuracy • No setup needed
+                </div>
+                <div style="font-size: 10px; color: #4CAF50; margin-top: 5px;">
+                    ✅ Recommended: Reliable free option that works immediately
+                </div>
+            </div>
+
             <div id="transformersConfig" style="display: none;">
                 <div style="font-size: 12px; color: #888;">
                     🔥 Free AI OCR • Browser-based TrOCR • 1-3s response • 90% accuracy • No API needed
                 </div>
-                <div style="font-size: 10px; color: #4CAF50; margin-top: 5px;">
-                    ✅ Recommended: Best free option with AI accuracy
+                <div style="font-size: 10px; color: #FFA500; margin-top: 5px;">
+                    ⚠️ May have CDN loading issues - try Free OCR if this fails
                 </div>
             </div>
             
@@ -599,6 +609,7 @@
     <script src="transformers-ocr.js"></script>
     <script src="azure-ocr.js"></script>
     <script src="ollama-ocr.js"></script>
+    <script src="free-ocr.js"></script>
     <script src="app.js"></script>
     
     <!-- PWA Service Worker Registration -->
