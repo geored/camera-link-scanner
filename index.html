@@ -38,10 +38,15 @@
             <div id="selectionBox" class="selection-box"></div>
         </div>
         
-        <div id="status" class="status">Initializing camera...</div>
-        <div id="performanceInfo" class="performance-info">OCR: Ready</div>
-        
-        <button id="configToggle" class="config-toggle">⚙️ AI Config</button>
+        <div class="top-row">
+            <div id="status" class="status">Initializing camera...</div>
+            <div id="performanceInfo" class="performance-info">OCR: Ready</div>
+            <div class="region-controls">
+                <button id="selectRegionBtn" class="region-btn">📱 Select Region</button>
+                <button id="cancelRegionBtn" class="region-btn" style="display: none;">❌ Cancel</button>
+            </div>
+            <button id="configToggle" class="config-toggle">⚙️ AI Config</button>
+        </div>
         
         <div id="aiConfig" class="ai-config">
             <h3>🤖 AI Vision Settings</h3>
@@ -141,10 +146,6 @@
             <div id="linksList"></div>
         </div>
         
-        <div class="region-controls">
-            <button id="selectRegionBtn" class="region-btn">📱 Select Region</button>
-            <button id="cancelRegionBtn" class="region-btn" style="display: none;">❌ Cancel</button>
-        </div>
         
         <div class="controls">
             <button id="scanBtn" disabled>Scan</button>
