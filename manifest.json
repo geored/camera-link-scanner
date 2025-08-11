@@ -2,12 +2,12 @@
   "name": "Camera Link Scanner",
   "short_name": "LinkScanner",
   "description": "OCR web app to detect and open links from camera input",
-  "start_url": "/",
+  "start_url": "/web-camera-linkopener/",
   "display": "standalone",
   "background_color": "#000000",
   "theme_color": "#000000",
   "orientation": "portrait",
-  "scope": "/",
+  "scope": "/web-camera-linkopener/",
   "icons": [
     {
       "src": "assets/icons/icon-192.png",
