@@ -12,6 +12,11 @@ class LinkManager {
         this.loadLinkHistory();
         this.setupEventListeners();
         this.updateDisplay();
+        
+        // Show panel if there are existing links
+        if (this.linkHistory.length > 0) {
+            this.showPanel();
+        }
     }
 
     setupEventListeners() {
@@ -25,7 +30,7 @@ class LinkManager {
             const saved = localStorage.getItem('cameraLinkHistory');
             if (saved) {
                 this.linkHistory = JSON.parse(saved);
-                console.log(`Loaded ${this.linkHistory.length} links from history`);
+                console.log(`LinkManager: Loaded ${this.linkHistory.length} links from history:`, this.linkHistory);
             }
         } catch (error) {
             console.error('Error loading link history:', error);
@@ -88,11 +93,16 @@ class LinkManager {
     }
 
     updateDisplay() {
-        if (!this.linksList) return;
+        if (!this.linksList) {
+            console.warn('LinkManager: linksList element not found!');
+            return;
+        }
 
+        console.log(`LinkManager: updateDisplay called with ${this.linkHistory.length} links`);
         this.linksList.innerHTML = '';
         
         const displayLinks = this.linkHistory.slice(0, this.displayLimit);
+        console.log('LinkManager: Will display', displayLinks.length, 'links');
         
         displayLinks.forEach((linkItem, index) => {
             const linkDiv = document.createElement('div');
@@ -123,7 +133,10 @@ class LinkManager {
 
     showPanel() {
         if (this.linksPanel) {
+            console.log('LinkManager: Showing panel');
             this.linksPanel.classList.add('show');
+        } else {
+            console.warn('LinkManager: linksPanel element not found!');
         }
     }
 
