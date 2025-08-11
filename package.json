@@ -1,0 +1,99 @@
+{
+  "name": "camera-link-scanner",
+  "version": "1.0.0",
+  "description": "OCR web app to detect and open links from camera input",
+  "main": "index.html",
+  "scripts": {
+    "start": "npm run serve",
+    "serve": "npx http-server -p 8080 -c-1 --cors",
+    "dev": "npx live-server --port=8080 --cors",
+    "build": "npm run minify && npm run optimize",
+    "minify": "npm run minify-css && npm run minify-js",
+    "minify-css": "npx cleancss -o dist/styles.min.css src/css/styles.css",
+    "minify-js": "npx terser src/js/main.js -o dist/main.min.js --compress --mangle",
+    "optimize": "npm run optimize-images",
+    "optimize-images": "npx imagemin assets/icons/* --out-dir=dist/assets/icons",
+    "lint": "npx eslint src/js/**/*.js src/components/**/*.js src/utils/**/*.js src/providers/**/*.js",
+    "lint-fix": "npm run lint -- --fix",
+    "test": "npx jest",
+    "test-watch": "npx jest --watch",
+    "validate": "npm run lint && npm run test",
+    "deploy": "npm run build && npx gh-pages -d .",
+    "clean": "rm -rf dist/ coverage/ .nyc_output/",
+    "audit": "npm audit --audit-level moderate"
+  },
+  "keywords": [
+    "ocr",
+    "camera",
+    "link-detection",
+    "pwa",
+    "computer-vision",
+    "mobile-app",
+    "tesseract",
+    "ai-vision"
+  ],
+  "author": "Camera Link Scanner Team",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/geored/web-camera-linkopener.git"
+  },
+  "bugs": {
+    "url": "https://github.com/geored/web-camera-linkopener/issues"
+  },
+  "homepage": "https://geored.github.io/web-camera-linkopener",
+  "devDependencies": {
+    "clean-css-cli": "^5.6.2",
+    "eslint": "^8.57.0",
+    "gh-pages": "^6.1.1",
+    "http-server": "^14.1.1",
+    "imagemin": "^8.0.1",
+    "imagemin-pngquant": "^9.0.2",
+    "jest": "^29.7.0",
+    "live-server": "^1.2.2",
+    "terser": "^5.26.0"
+  },
+  "dependencies": {},
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  },
+  "browserslist": [
+    "> 1%",
+    "last 2 versions",
+    "not dead",
+    "not ie 11"
+  ],
+  "jest": {
+    "testEnvironment": "jsdom",
+    "testMatch": [
+      "**/tests/**/*.test.js",
+      "**/src/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.js",
+      "!src/providers/**/*.js"
+    ]
+  },
+  "eslintConfig": {
+    "env": {
+      "browser": true,
+      "es2021": true
+    },
+    "extends": [
+      "eslint:recommended"
+    ],
+    "parserOptions": {
+      "ecmaVersion": "latest",
+      "sourceType": "script"
+    },
+    "globals": {
+      "Tesseract": "readonly"
+    },
+    "rules": {
+      "no-unused-vars": "warn",
+      "no-console": "off",
+      "prefer-const": "warn"
+    }
+  }
+}
