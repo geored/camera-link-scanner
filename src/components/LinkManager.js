@@ -7,7 +7,7 @@ class LinkManager {
         this.detectedLinks = [];
         this.linkHistory = [];
         this.maxHistorySize = 50;
-        this.displayLimit = 5;
+        this.displayLimit = 50; // Show all links
         
         this.loadLinkHistory();
         this.setupEventListeners();
@@ -114,12 +114,24 @@ class LinkManager {
             
             linkDiv.innerHTML = `
                 <div class="link-number">${index + 1}</div>
-                <div class="link-content" onclick="window.open('${linkItem.url}', '_blank')">
+                <div class="link-content">
                     <div class="link-url">${linkItem.url}</div>
                     <div class="link-time">${linkItem.timestamp}</div>
                 </div>
-                <button class="remove-link" onclick="event.stopPropagation(); linkManager.removeLink('${linkItem.id}')">×</button>
+                <button class="remove-link" data-link-id="${linkItem.id}">×</button>
             `;
+            
+            // Add event listeners
+            const linkContent = linkDiv.querySelector('.link-content');
+            linkContent.addEventListener('click', () => {
+                window.open(linkItem.url, '_blank');
+            });
+            
+            const removeBtn = linkDiv.querySelector('.remove-link');
+            removeBtn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                this.removeLink(linkItem.id);
+            });
             
             this.linksList.appendChild(linkDiv);
         });
