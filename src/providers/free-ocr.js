@@ -28,8 +28,9 @@ class FreeOCRProcessor {
             console.log('Free OCR: Processing image...');
             console.log(`Free OCR: Request ${this.requestCount + 1}/${this.maxRequests} in current window`);
             
-            // Convert canvas to blob
-            const blob = await this.canvasToBlob(canvas);
+            // Compress and resize canvas to meet API size limits
+            const optimizedCanvas = await this.optimizeImageForAPI(canvas);
+            const blob = await this.canvasToBlob(optimizedCanvas);
             
             // Call OCR.space free API
             const result = await this.callOCRSpaceAPI(blob);
@@ -114,7 +115,70 @@ class FreeOCRProcessor {
         return text.trim();
     }
 
-    async canvasToBlob(canvas) {
+    async optimizeImageForAPI(canvas) {
+        const maxWidth = 1200;
+        const maxHeight = 900;
+        const maxFileSizeKB = 900; // Stay well under 1024 KB limit
+        
+        let quality = 0.8;
+        let currentCanvas = canvas;
+        
+        // First, resize if dimensions are too large
+        if (canvas.width > maxWidth || canvas.height > maxHeight) {
+            const scale = Math.min(maxWidth / canvas.width, maxHeight / canvas.height);
+            currentCanvas = this.resizeCanvas(canvas, canvas.width * scale, canvas.height * scale);
+        }
+        
+        // Then, compress until we're under the size limit
+        let attempts = 0;
+        while (attempts < 5) {
+            const testBlob = await this.canvasToBlob(currentCanvas, quality);
+            const sizeKB = testBlob.size / 1024;
+            
+            console.log(`Free OCR: Image size check - ${sizeKB.toFixed(0)} KB (quality: ${quality})`);
+            
+            if (sizeKB <= maxFileSizeKB) {
+                console.log(`Free OCR: Image optimized to ${sizeKB.toFixed(0)} KB`);
+                return currentCanvas;
+            }
+            
+            // Reduce quality or resize further
+            if (quality > 0.3) {
+                quality -= 0.15;
+            } else {
+                // If quality is already low, resize further
+                const newScale = 0.8;
+                currentCanvas = this.resizeCanvas(currentCanvas, 
+                    currentCanvas.width * newScale, 
+                    currentCanvas.height * newScale
+                );
+                quality = 0.8; // Reset quality after resize
+            }
+            
+            attempts++;
+        }
+        
+        console.warn('Free OCR: Could not optimize image to required size, using best attempt');
+        return currentCanvas;
+    }
+
+    resizeCanvas(sourceCanvas, newWidth, newHeight) {
+        const newCanvas = document.createElement('canvas');
+        const ctx = newCanvas.getContext('2d');
+        
+        newCanvas.width = Math.floor(newWidth);
+        newCanvas.height = Math.floor(newHeight);
+        
+        // Use high-quality scaling
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+        
+        ctx.drawImage(sourceCanvas, 0, 0, newCanvas.width, newCanvas.height);
+        
+        return newCanvas;
+    }
+
+    async canvasToBlob(canvas, quality = 0.95) {
         return new Promise((resolve, reject) => {
             try {
                 // Check if canvas has toBlob method
@@ -125,10 +189,10 @@ class FreeOCRProcessor {
                         } else {
                             reject(new Error('Failed to create blob from canvas'));
                         }
-                    }, 'image/png', 0.95);
+                    }, 'image/jpeg', quality);
                 } else {
                     // Fallback: use toDataURL and convert to blob
-                    const dataUrl = canvas.toDataURL('image/png', 0.95);
+                    const dataUrl = canvas.toDataURL('image/jpeg', quality);
                     const blob = this.dataURLToBlob(dataUrl);
                     resolve(blob);
                 }
