@@ -380,8 +380,8 @@ button:disabled {
     right: 20px;
     width: auto;
     max-height: 35vh;
-    background: rgba(5, 15, 25, 0.4);
-    border: 1px solid rgba(0, 204, 255, 0.6);
+    background: rgba(5, 15, 25, 0.8);
+    border: 1px solid rgba(0, 204, 255, 0.8);
     padding: 0;
     backdrop-filter: blur(8px);
     z-index: 90;
@@ -510,7 +510,7 @@ button:disabled {
     align-items: center;
     padding: 6px 10px;
     margin: 1px 0;
-    background: linear-gradient(90deg, rgba(20, 30, 40, 0.3) 0%, rgba(30, 40, 50, 0.2) 100%);
+    background: linear-gradient(90deg, rgba(20, 30, 40, 0.7) 0%, rgba(30, 40, 50, 0.5) 100%);
     border: none;
     border-left: 3px solid rgba(0, 204, 255, 0.6);
     cursor: pointer;
@@ -573,7 +573,7 @@ button:disabled {
 
 .link-url {
     font-size: 10px;
-    color: rgba(255, 255, 255, 0.85);
+    color: rgba(255, 255, 255, 0.95);
     word-break: break-all;
     line-height: 1.1;
     display: block;

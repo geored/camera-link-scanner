@@ -42,11 +42,7 @@ class LinkManager {
     }
 
     addLinks(links) {
-        console.log('LinkManager: addLinks called with:', links);
-        if (!Array.isArray(links) || links.length === 0) {
-            console.log('LinkManager: No valid links to add');
-            return;
-        }
+        if (!Array.isArray(links) || links.length === 0) return;
 
         const newLinks = [];
         const timestamp = new Date().toLocaleTimeString();
@@ -92,16 +88,11 @@ class LinkManager {
     }
 
     updateDisplay() {
-        if (!this.linksList) {
-            console.warn('LinkManager: linksList element not found');
-            return;
-        }
+        if (!this.linksList) return;
 
-        console.log('LinkManager: Updating display with', this.linkHistory.length, 'total links');
         this.linksList.innerHTML = '';
         
         const displayLinks = this.linkHistory.slice(0, this.displayLimit);
-        console.log('LinkManager: Displaying', displayLinks.length, 'links:', displayLinks);
         
         displayLinks.forEach((linkItem, index) => {
             const linkDiv = document.createElement('div');
