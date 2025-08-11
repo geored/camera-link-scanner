@@ -115,11 +115,39 @@ class FreeOCRProcessor {
     }
 
     async canvasToBlob(canvas) {
-        return new Promise((resolve) => {
-            canvas.toBlob((blob) => {
-                resolve(blob);
-            }, 'image/png', 0.95);
+        return new Promise((resolve, reject) => {
+            try {
+                // Check if canvas has toBlob method
+                if (typeof canvas.toBlob === 'function') {
+                    canvas.toBlob((blob) => {
+                        if (blob) {
+                            resolve(blob);
+                        } else {
+                            reject(new Error('Failed to create blob from canvas'));
+                        }
+                    }, 'image/png', 0.95);
+                } else {
+                    // Fallback: use toDataURL and convert to blob
+                    const dataUrl = canvas.toDataURL('image/png', 0.95);
+                    const blob = this.dataURLToBlob(dataUrl);
+                    resolve(blob);
+                }
+            } catch (error) {
+                reject(new Error(`Canvas conversion failed: ${error.message}`));
+            }
         });
+    }
+
+    dataURLToBlob(dataURL) {
+        const arr = dataURL.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        return new Blob([u8arr], { type: mime });
     }
 }
 

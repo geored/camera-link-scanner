@@ -62,6 +62,11 @@ class CameraManager {
         
         ctx.drawImage(this.video, 0, 0);
         
+        return canvas;
+    }
+
+    captureFrameAsDataURL() {
+        const canvas = this.captureFrame();
         return canvas.toDataURL('image/jpeg', 0.8);
     }
 
@@ -81,6 +86,11 @@ class CameraManager {
             0, 0, width, height
         );
         
+        return canvas;
+    }
+
+    captureRegionAsDataURL(x, y, width, height) {
+        const canvas = this.captureRegion(x, y, width, height);
         return canvas.toDataURL('image/jpeg', 0.8);
     }
 }
