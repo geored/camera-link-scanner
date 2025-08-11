@@ -75,23 +75,31 @@ class ProviderManager {
 
         console.log(`Processing with ${this.currentProvider} provider`);
 
+        let result;
         switch (this.currentProvider) {
             case 'tesseract':
                 return await this.processTesseract(imageData, region);
             case 'enhanced':
-                return await provider.processImage(imageData, region);
+                result = await provider.processImage(imageData, region);
+                return result.text || result;
             case 'free-ocr':
-                return await provider.processImage(imageData);
+                result = await provider.processImage(imageData);
+                return result.text || result;
             case 'azure':
-                return await provider.processImage(imageData);
+                result = await provider.processImage(imageData);
+                return result.text || result;
             case 'google':
-                return await provider.processImageGoogle(imageData);
+                result = await provider.processImageGoogle(imageData);
+                return result.text || result;
             case 'openai':
-                return await provider.processImageOpenAI(imageData);
+                result = await provider.processImageOpenAI(imageData);
+                return result.text || result;
             case 'ollama':
-                return await provider.processImage(imageData);
+                result = await provider.processImage(imageData);
+                return result.text || result;
             case 'transformers':
-                return await provider.processImage(imageData);
+                result = await provider.processImage(imageData);
+                return result.text || result;
             default:
                 throw new Error(`Unknown provider: ${this.currentProvider}`);
         }
